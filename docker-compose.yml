@@ -1,0 +1,24 @@
+# Runs the EDI-Converter backend and frontend together.
+#   docker compose up --build
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5080:5080"
+    environment:
+      EDI_CORS_ORIGINS: "http://localhost:5173,http://localhost:8091,http://localhost"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # URL the browser uses to reach the backend (host-published port).
+        VITE_API_URL: "http://localhost:5080"
+    # Host port 8091 (8080 is commonly occupied by other apps). Change the
+    # left number if 8091 is also busy: e.g. "9000:80".
+    ports:
+      - "8091:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
