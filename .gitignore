@@ -1,0 +1,45 @@
+# ---------- Python (backend) ----------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# ---------- Node / Vite (frontend) ----------
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+# compiled config emitted by tsc -b
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# ---------- Environment & secrets ----------
+.env
+.env.*
+!.env.example
+*.local
+
+# ---------- Editors / IDEs ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Logs ----------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
