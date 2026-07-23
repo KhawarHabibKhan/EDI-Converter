@@ -87,6 +87,23 @@ export function convertCsv(text: string, fileName: string, type: string, base: s
   return postText(`/edi/csv?type=${encodeURIComponent(type)}`, text, fileName, base);
 }
 
+/** Convert EDI / our JSON / our XML to a FHIR R4 Bundle (v2).
+ *  Returns the raw FHIR JSON document as text. Type is auto-detected server-side. */
+export function convertFhir(text: string, fileName: string, base: string) {
+  return postText("/edi/fhir", text, fileName, base);
+}
+
+/** Validate the generated FHIR Bundle's R4 structure (v2). Returns the same
+ *  report shape as validateEdi so the UI renders it with one component. */
+export async function validateFhir(
+  text: string,
+  fileName: string,
+  base: string
+): Promise<ValidationResult> {
+  const raw = await postText("/edi/fhir/validate", text, fileName, base);
+  return JSON.parse(raw);
+}
+
 export interface ValidationResult {
   file_name: string;
   valid: boolean;

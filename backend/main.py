@@ -17,7 +17,9 @@ from fastapi import FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from engine import converter, csv_writer, validator, xml_writer
+from engine import converter, csv_writer, input_adapter, validator, xml_writer
+from engine.fhir import validator as fhir_validator
+from engine.fhir import writer as fhir_writer
 
 app = FastAPI(
     title="EDI-Converter API",
@@ -52,18 +54,23 @@ def root() -> dict[str, str]:
 # --------------------------------------------------------------------------- #
 #  Conversion endpoints
 # --------------------------------------------------------------------------- #
-async def _read_upload(file: UploadFile) -> tuple[str, str]:
+async def _read_upload(
+    file: UploadFile, allowed: Optional[set[str]] = None
+) -> tuple[str, str]:
     """Validate and decode an uploaded EDI file.
 
     Returns (file_name, decoded_text). Raises HTTPException on any problem.
+    ``allowed`` overrides the accepted extension set (the FHIR endpoint widens
+    it to include ``.json`` / ``.xml``).
     """
+    allowed = allowed or settings.ALLOWED_EXTENSIONS
     name = file.filename or "upload.edi"
     ext = os.path.splitext(name)[1].lower()
-    if ext and ext not in settings.ALLOWED_EXTENSIONS:
+    if ext and ext not in allowed:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type '{ext}'. Allowed: "
-            f"{', '.join(sorted(settings.ALLOWED_EXTENSIONS))}.",
+            f"{', '.join(sorted(allowed))}.",
         )
 
     raw_bytes = await file.read()
@@ -142,6 +149,76 @@ async def edi_to_csv(
     data = _convert_or_raise(text, type)
     csv_text = csv_writer.to_csv(data)
     return Response(content=csv_text, media_type="text/csv")
+
+
+# FHIR endpoint accepts our JSON/XML exports in addition to raw EDI.
+_FHIR_EXTENSIONS = settings.ALLOWED_EXTENSIONS | {".json", ".xml"}
+
+
+@app.post("/edi/fhir", tags=["fhir"])
+async def edi_to_fhir(file: UploadFile = File(...)) -> Response:
+    """Convert EDI / our JSON / our XML to a FHIR R4 Bundle (v2).
+
+    Accepts ``.edi/.dat`` (raw X12) or an EDI-Converter ``.json`` / ``.xml``
+    export. The input adapter normalizes any of these to the v1 dict, then the
+    FHIR writer emits a Bundle (``type: collection``) centered on the primary
+    resource (837 → ``Claim`` in V2-A). Returns ``application/fhir+json``.
+    """
+    file_name, text = await _read_upload(file, allowed=_FHIR_EXTENSIONS)
+    try:
+        data, transaction_type = input_adapter.detect_and_load(text, file_name)
+        bundle = fhir_writer.to_fhir(data, transaction_type)
+    except (input_adapter.InputFormatError, fhir_writer.UnsupportedFhirError,
+            converter.UnsupportedTransactionError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:  # noqa: BLE001 — never leak internals / PHI
+        raise HTTPException(
+            status_code=500, detail="Unexpected error building the FHIR Bundle."
+        )
+
+    import json as _json
+
+    return Response(
+        content=_json.dumps(bundle, indent=2),
+        media_type="application/fhir+json",
+    )
+
+
+@app.post("/edi/fhir/validate", tags=["fhir"])
+async def edi_fhir_validate(file: UploadFile = File(...)) -> dict:
+    """Build the FHIR Bundle for an upload and validate its R4 structure (V2-D).
+
+    Accepts the same inputs as ``/edi/fhir`` (``.edi/.dat/.json/.xml``). The
+    report shape mirrors ``/edi/validate`` so the frontend renders it with the
+    same component. Structural base-R4 checks only — IG profile certification is
+    the documented V2-D CI follow-up.
+    """
+    file_name, text = await _read_upload(file, allowed=_FHIR_EXTENSIONS)
+    try:
+        data, transaction_type = input_adapter.detect_and_load(text, file_name)
+        bundle = fhir_writer.to_fhir(data, transaction_type)
+    except (input_adapter.InputFormatError, fhir_writer.UnsupportedFhirError,
+            converter.UnsupportedTransactionError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:  # noqa: BLE001 — never leak internals / PHI
+        raise HTTPException(
+            status_code=500, detail="Unexpected error building the FHIR Bundle."
+        )
+
+    report = fhir_validator.validate_report(bundle)
+    # Adapt to the shared validation-report shape (segment/position like v1).
+    issues = [
+        {"severity": it["severity"], "message": it["message"], "segment": it["path"], "position": 0}
+        for it in report["issues"]
+    ]
+    return {
+        "file_name": file_name,
+        "valid": report["valid"],
+        "error_count": report["error_count"],
+        "warning_count": report["warning_count"],
+        "issue_count": report["issue_count"],
+        "issues": issues,
+    }
 
 
 @app.post("/edi/validate", tags=["validation"])
