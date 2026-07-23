@@ -66,6 +66,16 @@ def _sniff_format(text: str, ext: str) -> str:
     )
 
 
+def detect_format(text: str, filename: str = "") -> str:
+    """Public format detector: 'edi' | 'json' | 'xml'. Raises InputFormatError
+    if the input matches none. Used to decide whether SNIP validation (which
+    only applies to raw X12) is relevant for an input."""
+    import os
+
+    ext = os.path.splitext(filename or "")[1].lower()
+    return _sniff_format(text, ext)
+
+
 def detect_and_load(text: str, filename: str = "") -> Tuple[Dict[str, Any], str]:
     """Detect the input format and return ``(normalized_dict, transaction_type)``.
 

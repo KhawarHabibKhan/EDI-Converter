@@ -17,9 +17,10 @@ from fastapi import FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from engine import converter, csv_writer, input_adapter, validator, xml_writer
+from engine import converter, csv_writer, input_adapter, xml_writer
 from engine.fhir import validator as fhir_validator
 from engine.fhir import writer as fhir_writer
+from engine.validation import runner as snip_runner
 
 app = FastAPI(
     title="EDI-Converter API",
@@ -186,50 +187,109 @@ async def edi_to_fhir(file: UploadFile = File(...)) -> Response:
 
 @app.post("/edi/fhir/validate", tags=["fhir"])
 async def edi_fhir_validate(file: UploadFile = File(...)) -> dict:
-    """Build the FHIR Bundle for an upload and validate its R4 structure (V2-D).
+    """Validate an upload for the FHIR pipeline — **source + output**.
 
-    Accepts the same inputs as ``/edi/fhir`` (``.edi/.dat/.json/.xml``). The
-    report shape mirrors ``/edi/validate`` so the frontend renders it with the
-    same component. Structural base-R4 checks only — IG profile certification is
-    the documented V2-D CI follow-up.
+    Two complementary checks, combined into one report so the FHIR page matches
+    the Converter page:
+      1. **Source (SNIP):** when the input is raw X12 EDI, run the same SNIP
+         validation the Converter page runs (levelled issues). This is what
+         catches source problems (missing segments, bad amounts) — a lenient
+         mapper can still turn a broken 837 into a structurally-valid Bundle,
+         so the Bundle check alone would miss them.
+      2. **Output (FHIR R4):** build the Bundle and validate its base-R4
+         structure (`stage: "fhir"`).
+
+    Accepts ``.edi/.dat/.json/.xml`` (JSON/XML exports skip SNIP — it only
+    applies to raw X12). Report shape mirrors ``/edi/validate``.
     """
     file_name, text = await _read_upload(file, allowed=_FHIR_EXTENSIONS)
+
+    issues: list[dict] = []
+    transaction_type = None
+    snip_level = None
+
+    # 1) SNIP validation of the raw X12 source (identical to the Converter page).
     try:
-        data, transaction_type = input_adapter.detect_and_load(text, file_name)
-        bundle = fhir_writer.to_fhir(data, transaction_type)
+        fmt = input_adapter.detect_format(text, file_name)
+    except input_adapter.InputFormatError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if fmt == "edi":
+        snip = snip_runner.validate(text)
+        transaction_type = snip["transaction_type"]
+        snip_level = snip["snip_level"]
+        for it in snip["issues"]:
+            issues.append({
+                "severity": it["severity"], "message": it["message"],
+                "segment": it["segment"], "position": it["position"],
+                "level": it["level"], "stage": "snip",
+            })
+
+    # 2) Build the Bundle and validate its FHIR R4 structure.
+    try:
+        data, ttype = input_adapter.detect_and_load(text, file_name)
+        transaction_type = transaction_type or ttype
+        bundle = fhir_writer.to_fhir(data, ttype)
     except (input_adapter.InputFormatError, fhir_writer.UnsupportedFhirError,
             converter.UnsupportedTransactionError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        if fmt != "edi":
+            # No SNIP context and the Bundle can't be built → nothing to report.
+            raise HTTPException(status_code=400, detail=str(exc))
+        # EDI that can't convert: keep the SNIP findings, note the build failure.
+        issues.append({
+            "severity": "ERROR", "message": f"Could not build a FHIR Bundle from this input: {exc}",
+            "segment": "", "position": 0, "stage": "fhir",
+        })
     except Exception:  # noqa: BLE001 — never leak internals / PHI
-        raise HTTPException(
-            status_code=500, detail="Unexpected error building the FHIR Bundle."
-        )
+        raise HTTPException(status_code=500, detail="Unexpected error building the FHIR Bundle.")
+    else:
+        report = fhir_validator.validate_report(bundle)
+        for it in report["issues"]:
+            issues.append({
+                "severity": it["severity"], "message": it["message"],
+                "segment": it["path"], "position": 0, "stage": "fhir",
+            })
 
-    report = fhir_validator.validate_report(bundle)
-    # Adapt to the shared validation-report shape (segment/position like v1).
-    issues = [
-        {"severity": it["severity"], "message": it["message"], "segment": it["path"], "position": 0}
-        for it in report["issues"]
-    ]
+    errors = sum(1 for i in issues if i["severity"] == "ERROR")
+    warnings = sum(1 for i in issues if i["severity"] == "WARNING")
     return {
         "file_name": file_name,
-        "valid": report["valid"],
-        "error_count": report["error_count"],
-        "warning_count": report["warning_count"],
-        "issue_count": report["issue_count"],
+        "transaction_type": transaction_type,
+        "snip_level": snip_level,
+        "valid": errors == 0,
+        "error_count": errors,
+        "warning_count": warnings,
+        "issue_count": len(issues),
         "issues": issues,
     }
 
 
 @app.post("/edi/validate", tags=["validation"])
-async def edi_validate(file: UploadFile = File(...)) -> dict:
-    """Validate the X12 envelope structure and return a list of issues."""
+async def edi_validate(
+    file: UploadFile = File(...),
+    snip_level: Optional[int] = Query(
+        None,
+        ge=1,
+        le=snip_runner.HIGHEST_LEVEL,
+        description="WEDI SNIP level (cumulative). Defaults to the highest implemented.",
+    ),
+) -> dict:
+    """Validate an X12 file through the WEDI SNIP levels and return the issues.
+
+    Levels are cumulative (a level-N request also reports levels 1..N-1). Level 1
+    is envelope integrity; Level 2 adds transaction-type requirement checks. Each
+    issue is labeled with its ``level``. The report also names the detected
+    ``transaction_type`` and the applied ``snip_level``.
+    """
     file_name, text = await _read_upload(file)
-    issues = validator.validate_edi(text)
+    result = snip_runner.validate(text, snip_level)
+    issues = result["issues"]
     errors = sum(1 for i in issues if i["severity"] == "ERROR")
     warnings = sum(1 for i in issues if i["severity"] == "WARNING")
     return {
         "file_name": file_name,
+        "transaction_type": result["transaction_type"],
+        "snip_level": result["snip_level"],
         "valid": errors == 0,
         "error_count": errors,
         "warning_count": warnings,
