@@ -35,6 +35,7 @@ export default function ConverterPage() {
   const [apiBase, setApiBase] = useState(DEFAULT_BASE);
   const [format, setFormat] = useState<Format>("json");
   const [txnType, setTxnType] = useState<TxnType>("auto");
+  const [snipLevel, setSnipLevel] = useState<number>(2); // highest implemented
   const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [result, setResult] = useState<Result>({ kind: "placeholder" });
   const [validity, setValidity] = useState<
@@ -87,7 +88,7 @@ export default function ConverterPage() {
       );
       try {
         // Hold the loading animation for a realistic minimum window (~2-3s).
-        const [r] = await Promise.all([validateEdi(edi, fileName, apiBase), sleep(VALIDATE_MIN_MS)]);
+        const [r] = await Promise.all([validateEdi(edi, fileName, apiBase, snipLevel), sleep(VALIDATE_MIN_MS)]);
         if (r.error_count > 0)
           setValidity({ kind: "error", label: `${r.error_count} error${r.error_count > 1 ? "s" : ""}` });
         else if (r.warning_count > 0)
@@ -103,7 +104,7 @@ export default function ConverterPage() {
       }
     }, 600);
     return () => clearTimeout(t);
-  }, [edi, fileName, apiBase, batchFiles.length]);
+  }, [edi, fileName, apiBase, batchFiles.length, snipLevel]);
 
   function loadFiles(files: FileList) {
     if (files.length > 1) {
@@ -263,6 +264,13 @@ export default function ConverterPage() {
               <label htmlFor="txn">Transaction type</label>
               <select id="txn" value={txnType} onChange={(e) => setTxnType(e.target.value as TxnType)}>
                 {TXN_TYPES.map((t) => <option key={t} value={t}>{t === "auto" ? "Auto-detect" : t}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="snip">SNIP validation level</label>
+              <select id="snip" value={snipLevel} onChange={(e) => setSnipLevel(Number(e.target.value))}>
+                <option value={1}>Level 1 — Integrity (envelope)</option>
+                <option value={2}>Level 2 — Requirement (IG syntax)</option>
               </select>
             </div>
             <div className="field">
