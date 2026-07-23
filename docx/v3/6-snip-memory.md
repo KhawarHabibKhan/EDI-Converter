@@ -13,12 +13,13 @@
   (SNIP **Level 1** only), batch, maximize.
 - **v2 (FHIR):** complete (V2-A→D). 8 types → FHIR R4 Bundles + FHIR structural
   validation. See `../v2/6-fhir-memory.md`.
-- **v3 (SNIP L2–5):** **Levels 2, 3 & 4 complete.**
+- **v3 (SNIP L2–5): COMPLETE.** All levels 2–5 built.
   - Level 2 (Requirement) — merged to `main`.
   - Level 3 (Balancing) — merged to `main`.
-  - Level 4 (Situational) — built on `feature/snip-validation-level-4`
-    (`HIGHEST_LEVEL=4`, default validation now runs L1+L2+L3+L4). Backend **153
-    tests**, frontend build clean. Awaiting merge, then Level 5.
+  - Level 4 (Situational) — merged to `main`.
+  - Level 5 (Code sets) — built on `feature/snip-validation-level-5`
+    (`HIGHEST_LEVEL=5`, default validation now runs L1..L5). Backend **166
+    tests** passing, frontend build clean. Awaiting merge → completes v3.
 
 ## 6.2 Locked decisions
 | # | Decision | Choice |
@@ -39,8 +40,8 @@
 | 1 | (merged, pre-v3) | Integrity / envelope | ✅ done (`engine/validator.py`) |
 | 2 | `feature/snip-validation-level-2` | Requirement (framework + `?snip_level=` + IG required segs/elements) | ✅ merged |
 | 3 | `feature/snip-validation-level-3` | Balancing (837 totals; 835 payment math) | ✅ merged |
-| 4 | `feature/snip-validation-level-4` | Situational (inter-segment rules) | ✅ built (pending merge) |
-| 5 | `feature/snip-level-5` | Code sets (free sets; CPT gated) | ⬜ Not started |
+| 4 | `feature/snip-validation-level-4` | Situational (inter-segment rules) | ✅ merged |
+| 5 | `feature/snip-validation-level-5` | Code sets (free sets; CPT gated) | ✅ built (pending merge) |
 
 ### What Level 2 shipped (files, branch `feature/snip-validation-level-2`)
 - Backend: `engine/validation/` package — `__init__.py` (`HIGHEST_LEVEL=2`),
@@ -62,14 +63,34 @@
 Legend: ⬜ Not started · 🟨 In progress · ✅ Done/merged
 
 ## 6.4 Which component / feature next
-- **Now:** user merges `feature/snip-validation-level-4` → `main`.
-- **Next action:** after merge, from a fresh `main` create the Level 5 branch and
-  build **V3-L5** — `engine/validation/level5.py` + `codesets/` (bundled free
-  sets: ICD-10-CM/PCS, HCPCS, POS, X12 internal lists). Validate coded values
-  against their set; **CPT is format-checked only, membership gated on AMA
-  licensing** (§6.5). Bump `HIGHEST_LEVEL` to 5, extend the UI selector, add
-  `tests/test_snip_level5.py`. **This is the final v3 level.**
+- **Now:** user merges `feature/snip-validation-level-5` → `main`. **This
+  completes v3** (SNIP Levels 1–5 all in `main`).
+- **After v3:** no further SNIP levels planned (6–7 are out of scope). Candidate
+  next work: swap the seed ICD/HCPCS sets for the full CMS lists (data-only
+  refresh), revisit the deferred 835 BPR-level balancing, or move on to another
+  RECOMMENDATIONS.md item.
 - **No parser/mapper/FHIR changes** — validation reads the existing segments.
+
+### What Level 5 shipped (files, branch `feature/snip-validation-level-5`)
+- Backend: `engine/validation/level5.py` — membership validation of coded
+  elements against bundled free sets. Checks ICD-10-CM diagnoses (`HI`
+  ABK/ABF/ABJ/APR/ABN), ICD-10-PCS inpatient procedures (`HI` BBR/BBQ, 837I),
+  HCPCS Level II procedures (`SV1`/`SV2` `HC:`), and Place of Service
+  (`CLM05-01`, 837P). Unknown code → `ERROR` labeled `5`.
+- Code sets: `engine/validation/codesets/` package — `__init__.py` loader
+  (`contains`/`available`/`counts`, lazy + cached, normalizes case/dots) plus
+  `pos.txt` (complete standard set), `icd10cm.txt`, `icd10pcs.txt`, `hcpcs.txt`
+  (**seed subsets** — README documents refreshing to the full CMS lists as a
+  data-only change), and `README.md`.
+- **CPT gated:** 5-digit numeric CPT-range codes are format-checked only and
+  never membership-validated; one `INFO` note per file records this. Flip
+  `CPT_MEMBERSHIP=True` in `level5.py` (and add `cpt.txt`) once AMA licensing is
+  approved — no restructuring.
+- Wiring: `__init__.py` `HIGHEST_LEVEL=5`; `runner.py` runs `level5` at level ≥5.
+- Frontend: "Level 5 — Code sets (ICD / HCPCS / POS)" option added; default now 5.
+- Tests: `tests/test_snip_level5.py` — loader membership, clean 837P/837I pass,
+  unknown ICD-10-CM/PCS/HCPCS/POS flagged, CPT format-only + INFO note, level
+  gating, endpoint default. Suite now **166** (was 153).
 
 ### What Level 3 shipped (merged)
 - `engine/validation/level3.py` (exact `Decimal`): 837 `CLM02` == Σ line charges;
@@ -89,8 +110,10 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done/merged
 ## 6.5 Open items / to confirm
 - [x] Level 2 merged to `main`.
 - [x] Level 3 merged to `main`.
-- [x] Level 4 built on `feature/snip-validation-level-4` — pending user merge.
-- [ ] After merge, start **Level 5** (code sets) on a fresh branch from `main`.
+- [x] Level 4 — merged to `main`.
+- [x] Level 5 built on `feature/snip-validation-level-5` — pending user merge (completes v3).
+- [ ] Refresh seed ICD-10-CM / ICD-10-PCS / HCPCS sets with the full CMS lists
+      (data-only; drop-in replace the `.txt` files in `codesets/`).
 - [ ] **BPR-level 835 balancing** (`BPR02 = Σ CLP04 − Σ PLB`) deferred from L3 —
       revisit with realistic balanced samples (sign-aware PLB).
 - [ ] **CPT licensing** (AMA) for full Level 5 — ship free sets first; confirm
