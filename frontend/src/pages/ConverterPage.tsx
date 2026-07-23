@@ -35,7 +35,7 @@ export default function ConverterPage() {
   const [apiBase, setApiBase] = useState(DEFAULT_BASE);
   const [format, setFormat] = useState<Format>("json");
   const [txnType, setTxnType] = useState<TxnType>("auto");
-  const [snipLevel, setSnipLevel] = useState<number>(4); // highest implemented
+  const [snipLevel, setSnipLevel] = useState<number>(5); // highest implemented
   const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [result, setResult] = useState<Result>({ kind: "placeholder" });
   const [validity, setValidity] = useState<
@@ -273,6 +273,7 @@ export default function ConverterPage() {
                 <option value={2}>Level 2 — Requirement (IG syntax)</option>
                 <option value={3}>Level 3 — Balancing (amounts)</option>
                 <option value={4}>Level 4 — Situational (dependencies)</option>
+                <option value={5}>Level 5 — Code sets (ICD / HCPCS / POS)</option>
               </select>
             </div>
             <div className="field">

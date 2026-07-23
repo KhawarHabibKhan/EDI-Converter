@@ -95,7 +95,7 @@ Inter-segment "if A present, then B required" rules.
 
 ---
 
-## V3-L5 — Level 5: Code set  *(branch: `feature/snip-level-5`)*
+## V3-L5 — Level 5: Code set  *(branch: `feature/snip-validation-level-5`)* — ✅ built
 
 External code-set validity from **bundled free sets**; **CPT gated**.
 
