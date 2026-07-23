@@ -454,6 +454,19 @@ table.grid-table tr:hover td { background: var(--accent-soft); }
 }
 .seg-btn:disabled { cursor: default; opacity: 1; }
 
+/* SNIP validation level badge + scope line (validation view) */
+.issues-scope {
+  font-size: 0.74rem; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--ink-mute); margin-bottom: 4px;
+}
+.snip-badge {
+  font-family: "JetBrains Mono", monospace; font-size: 0.66rem; font-weight: 700;
+  padding: 2px 6px; border-radius: 6px; line-height: 1;
+  color: var(--accent); background: var(--accent-soft); border: 1px solid var(--hairline);
+}
+.snip-badge.l1 { color: var(--ink-mute); }
+.snip-badge.fhir { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 40%, transparent); }
+
 /* Slim scrollbars */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.35); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }

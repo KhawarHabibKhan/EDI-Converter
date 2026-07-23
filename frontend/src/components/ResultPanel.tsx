@@ -208,11 +208,21 @@ export function ResultView({
   }
   if (result.kind === "validation") {
     const r = result.report;
+    const scope =
+      (r.snip_level ? `SNIP level ${r.snip_level}` : "") +
+      (r.transaction_type ? ` · ${r.transaction_type}` : "");
     if (r.valid && r.issue_count === 0) {
-      return <Centered tone="good" title="Valid — no issues found" subtitle="The X12 envelope structure passed all checks." />;
+      return (
+        <Centered
+          tone="good"
+          title="Valid — no issues found"
+          subtitle={`Passed all checks${scope ? ` (${scope.trim()})` : ""}.`}
+        />
+      );
     }
     return (
       <div className="issues">
+        {scope && <div className="issues-scope">Validated to {scope.trim()}</div>}
         <div className="summary">
           <div className="stat e"><b>{r.error_count}</b><span>Errors</span></div>
           <div className="stat w"><b>{r.warning_count}</b><span>Warnings</span></div>
@@ -223,7 +233,15 @@ export function ResultView({
           const loc = [it.segment && `seg ${it.segment}`, it.position ? `#${it.position}` : ""].filter(Boolean).join(" · ");
           return (
             <div key={i} className={`issue ${sev}`}>
-              <div className="issue-top"><span className={`sev ${sev}`}>{it.severity}</span>{loc && <span className="issue-loc">{loc}</span>}</div>
+              <div className="issue-top">
+                {it.stage === "fhir" ? (
+                  <span className="snip-badge fhir">FHIR</span>
+                ) : it.level != null ? (
+                  <span className={`snip-badge l${it.level}`}>L{it.level}</span>
+                ) : null}
+                <span className={`sev ${sev}`}>{it.severity}</span>
+                {loc && <span className="issue-loc">{loc}</span>}
+              </div>
               <div className="issue-msg">{it.message}</div>
             </div>
           );

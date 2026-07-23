@@ -19,13 +19,22 @@ def _issue(severity: str, message: str, segment: str = "", position: int = 0) ->
 
 
 def validate_edi(raw: str) -> List[Dict[str, Any]]:
-    """Validate raw EDI text and return a list of issues (empty = clean)."""
-    issues: List[Dict[str, Any]] = []
+    """Validate raw EDI text and return a list of issues (empty = clean).
+
+    This is the SNIP **Level 1** (envelope integrity) entry point and stays
+    backward compatible. The SNIP runner (``engine.validation``) reuses the
+    doc-based core below without re-parsing.
+    """
     try:
         doc = x12_reader.parse(raw)
     except ValueError:
         return [_issue("ERROR", "No EDI segments found; not a valid X12 interchange.")]
+    return validate_doc(doc)
 
+
+def validate_doc(doc: x12_reader.EdiDocument) -> List[Dict[str, Any]]:
+    """Level-1 envelope checks on an already-parsed document."""
+    issues: List[Dict[str, Any]] = []
     segs = doc.segments
 
     # --- Interchange envelope (ISA / IEA) ------------------------------- #

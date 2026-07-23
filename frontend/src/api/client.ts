@@ -106,19 +106,25 @@ export async function validateFhir(
 
 export interface ValidationResult {
   file_name: string;
+  transaction_type?: string | null;
+  snip_level?: number;
   valid: boolean;
   error_count: number;
   warning_count: number;
   issue_count: number;
-  issues: { severity: string; message: string; segment: string; position: number }[];
+  issues: { severity: string; message: string; segment: string; position: number; level?: number; stage?: string }[];
 }
 
-/** Validate EDI structure. Returns the issue report. */
+/** Validate EDI through the WEDI SNIP levels (cumulative). `snipLevel` omitted
+ *  = server default (highest implemented). Returns the issue report. */
 export async function validateEdi(
   text: string,
   fileName: string,
-  base: string
+  base: string,
+  snipLevel?: number
 ): Promise<ValidationResult> {
-  const raw = await postText("/edi/validate", text, fileName, base);
+  const path =
+    snipLevel != null ? `/edi/validate?snip_level=${snipLevel}` : "/edi/validate";
+  const raw = await postText(path, text, fileName, base);
   return JSON.parse(raw);
 }

@@ -97,7 +97,10 @@ def test_validate_endpoint_accepts_json_export(sample_835):
         files={"file": ("s.json", exported, "application/json")},
     )
     assert resp.status_code == 200
-    assert resp.json()["valid"] is True
+    body = resp.json()
+    assert body["valid"] is True
+    # JSON export input is not raw X12 → SNIP does not apply.
+    assert body["snip_level"] is None
 
 
 def test_validate_endpoint_bad_input_400():
@@ -106,3 +109,32 @@ def test_validate_endpoint_bad_input_400():
         files={"file": ("x.json", b'{"nope": true}', "application/json")},
     )
     assert resp.status_code == 400
+
+
+def test_validate_endpoint_surfaces_source_snip_errors(sample_837p):
+    """The FHIR page must flag source problems the Converter flags — a lenient
+    mapper would otherwise still produce a 'valid' Bundle from a broken 837."""
+    broken = sample_837p.replace("SV1*HC:99213:25*150.00*UN*1***1~", "").replace(
+        "SV1*HC:71046*200.00*UN*1***1~", ""
+    )
+    resp = client.post(
+        "/edi/fhir/validate",
+        files={"file": ("s.edi", broken.encode("utf-8"), "text/plain")},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["valid"] is False
+    assert body["snip_level"] == 2
+    snip_issues = [i for i in body["issues"] if i.get("stage") == "snip"]
+    assert any("SV1" in i["segment"] for i in snip_issues)
+
+
+def test_validate_endpoint_clean_has_both_stages_available(sample_837p):
+    """A clean 837 runs both SNIP (source) and FHIR (output) checks."""
+    resp = client.post(
+        "/edi/fhir/validate",
+        files={"file": ("s.edi", sample_837p.encode("utf-8"), "text/plain")},
+    )
+    body = resp.json()
+    assert body["valid"] is True
+    assert body["transaction_type"] == "837P"

@@ -9,6 +9,7 @@ import { ResultPanel, type Result } from "../components/ResultPanel";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const CONVERT_MIN_MS = 2000; // realistic loading window, matches the v1 page
+const VALIDATE_MIN_MS = 2200; // realistic loading window for auto-validation
 
 /** Derive a "FHIR · <ResourceType>" badge from the returned Bundle. */
 function fhirBadge(bundle: unknown): string {
@@ -99,7 +100,6 @@ export default function FhirPage() {
       return;
     }
     setResult({ kind: "loading", label: "Building FHIR Bundle", source: "convert" });
-    setValidity(null);
     try {
       const [raw] = await Promise.all([convertFhir(src, name, apiBase), sleep(CONVERT_MIN_MS)]);
       let parsed: unknown;
@@ -110,27 +110,56 @@ export default function FhirPage() {
       }
       const pretty = typeof parsed === "string" ? raw : JSON.stringify(parsed, null, 2);
       setResult({ kind: "json", html: highlightJSON(parsed), raw: pretty, badge: fhirBadge(parsed) });
-      void runFhirValidation(src, name);
+      // The validity chip is kept current by the auto-validation effect below.
     } catch (e) {
       setResult(apiError(e));
     }
   }
 
-  // After a successful conversion, validate the generated Bundle's FHIR R4
-  // structure automatically and surface a compact chip in the Source header.
-  async function runFhirValidation(src: string = input, name: string = fileName) {
-    setValidity({ kind: "checking", label: "Validating FHIR…" });
-    try {
-      const r = await validateFhir(src, name, apiBase);
-      if (r.error_count > 0)
-        setValidity({ kind: "error", label: `${r.error_count} FHIR error${r.error_count > 1 ? "s" : ""}` });
-      else if (r.warning_count > 0)
-        setValidity({ kind: "warn", label: `${r.warning_count} warning${r.warning_count > 1 ? "s" : ""}` });
-      else setValidity({ kind: "valid", label: "Valid FHIR R4" });
-    } catch {
-      setValidity(null); // stay quiet if validation can't be reached
+  // When the input changes, drop a stale Bundle result so the fresh
+  // auto-validation can take the panel (keep an existing validation view).
+  useEffect(() => {
+    setResult((prev) =>
+      prev.kind === "validation" || prev.kind === "placeholder" ? prev : { kind: "placeholder" }
+    );
+  }, [input]);
+
+  // Auto-validate the FHIR R4 Bundle the current input would produce — mirrors
+  // the Converter page's automated validation. Debounced; shows the report in
+  // the panel (when not showing a conversion) and a chip in the Source header.
+  useEffect(() => {
+    if (!input.trim()) {
+      setValidity(null);
+      return;
     }
-  }
+    const validateCanOwn = (prev: Result) =>
+      prev.kind === "placeholder" ||
+      prev.kind === "validation" ||
+      (prev.kind === "loading" && prev.source === "validate");
+
+    const t = setTimeout(async () => {
+      setValidity({ kind: "checking", label: "Validating…" });
+      setResult((prev) =>
+        validateCanOwn(prev) ? { kind: "loading", label: "Validating source (SNIP) + FHIR R4…", source: "validate" } : prev
+      );
+      try {
+        const [r] = await Promise.all([validateFhir(input, fileName, apiBase), sleep(VALIDATE_MIN_MS)]);
+        if (r.error_count > 0)
+          setValidity({ kind: "error", label: `${r.error_count} error${r.error_count > 1 ? "s" : ""}` });
+        else if (r.warning_count > 0)
+          setValidity({ kind: "warn", label: `${r.warning_count} warning${r.warning_count > 1 ? "s" : ""}` });
+        else setValidity({ kind: "valid", label: "Valid — SNIP + FHIR R4" });
+        setResult((prev) => (validateCanOwn(prev) ? { kind: "validation", report: r } : prev));
+      } catch {
+        // Input that can't convert (unsupported / malformed) → stay quiet.
+        setValidity(null);
+        setResult((prev) =>
+          prev.kind === "loading" && prev.source === "validate" ? { kind: "placeholder" } : prev
+        );
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [input, fileName, apiBase]);
 
   // Receive a "Forward to FHIR" hand-off from the Converter page: only prefill
   // the input (do NOT auto-convert — the user clicks Convert themselves). Clear

@@ -67,7 +67,34 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done
   `POST /edi/fhir/validate` in `main.py`.
 - Tests: `tests/test_fhir_c.py`, `tests/test_fhir_validate.py` (106 total green).
 - Frontend: `validateFhir` client + automated **Valid FHIR R4** validity chip on
-  the `/fhir` page (mirrors the v1 auto-validation UX).
+  the `/fhir` page.
+
+### FHIR page auto-validation (parity with the Converter page)
+- The `/fhir` page now **auto-validates on input change** (debounced ~600ms +
+  ~2.2s aesthetic window), exactly like the Converter page — no Convert click
+  needed. Shows the report in the result panel (when not showing a Bundle) **and**
+  a validity chip in the Source header. Uses the same `validateCanOwn` race-guard
+  + `source:"validate"` loading tag and a "clear stale Bundle on input change"
+  effect. `run()` no longer triggers validation itself; forwarded hand-offs get
+  auto-validated too. Files: `pages/FhirPage.tsx` (`VALIDATE_MIN_MS`, two effects).
+
+### `/edi/fhir/validate` now validates **source + output** (SNIP + FHIR)
+- **Problem fixed:** the FHIR page used to validate only the generated Bundle's
+  R4 structure, so a SNIP-broken 837 (missing service line, bad amount) still
+  produced a structurally-valid Bundle and **passed** — inconsistent with the
+  Converter page, which flagged it. The mappers are lenient (`.get()` + `prune`),
+  so Bundle-only validation misses source defects.
+- **Fix:** `/edi/fhir/validate` now runs **both**: (1) when the input is raw X12
+  EDI, the **same SNIP validation** as `/edi/validate` (levelled issues, tagged
+  `stage:"snip"`); (2) the FHIR R4 Bundle structure check (`stage:"fhir"`).
+  JSON/XML exports skip SNIP (only raw X12 has an envelope). If EDI can't build a
+  Bundle, SNIP findings are still returned + a `stage:"fhir"` build-failure note.
+  Report gains `transaction_type` + `snip_level`; each issue carries `stage`.
+- Frontend: the validation view badges `stage:"fhir"` issues as **FHIR** and
+  SNIP issues as **L1/L2**; the chip reads "Valid — SNIP + FHIR R4". Files:
+  `main.py` (`/edi/fhir/validate`), `input_adapter.detect_format`,
+  `components/ResultPanel.tsx`, `api/client.ts`, `pages/FhirPage.tsx`.
+  Tests: `tests/test_fhir_validate.py` (broken-EDI surfaces SNIP errors). 128 total.
 
 ### "Forward to FHIR" hand-off (added after V2-D)
 - Converter result panel has a **Forward to FHIR** button, **enabled only for
