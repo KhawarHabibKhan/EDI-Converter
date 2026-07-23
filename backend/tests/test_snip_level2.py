@@ -114,11 +114,13 @@ def test_level1_only_skips_requirement_rules(sample_837p):
 # --------------------------------------------------------------------------- #
 #  Endpoint
 # --------------------------------------------------------------------------- #
-def test_endpoint_default_is_level2_and_labels(sample_837p):
+def test_endpoint_default_is_highest_and_labels(sample_837p):
+    from engine.validation import HIGHEST_LEVEL
+
     resp = client.post("/edi/validate", files={"file": ("s.edi", sample_837p.encode("utf-8"), "text/plain")})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["snip_level"] == 2
+    assert body["snip_level"] == HIGHEST_LEVEL  # default = highest implemented
     assert body["transaction_type"] == "837P"
     assert body["valid"] is True
 

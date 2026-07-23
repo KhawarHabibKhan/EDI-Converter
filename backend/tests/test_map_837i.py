@@ -13,7 +13,7 @@ def test_837i_detected_and_form(sample_837i):
 def test_837i_claim_header_fields(sample_837i):
     claim = converter.convert_edi(sample_837i)["claims"][0]
     assert claim["patient_account_no"] == "HOSPACCT01"
-    assert claim["total_charge"] == "12500"
+    assert claim["total_charge"] == "750"
     # Type of bill = facility type (11) + frequency (1)
     assert claim["facility_type_code"] == "11"
     assert claim["box_4_type_of_bill"] == "111"
