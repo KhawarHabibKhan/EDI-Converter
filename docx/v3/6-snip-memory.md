@@ -13,8 +13,10 @@
   (SNIP **Level 1** only), batch, maximize.
 - **v2 (FHIR):** complete (V2-A→D). 8 types → FHIR R4 Bundles + FHIR structural
   validation. See `../v2/6-fhir-memory.md`.
-- **v3 (SNIP L2–5):** **planned, not started.** Documentation set written;
-  awaiting go-ahead to start **Level 2** (`feature/snip-level-2`).
+- **v3 (SNIP L2–5):** **Level 2 complete** (branch `feature/snip-validation-level-2`).
+  Framework + `?snip_level=` + requirement rules for all in-scope types built and
+  green (backend **126 tests**, frontend build clean). Awaiting merge to `main`,
+  then Level 3.
 
 ## 6.2 Locked decisions
 | # | Decision | Choice |
@@ -33,24 +35,43 @@
 | Level | Branch | Description | Status |
 |-------|--------|-------------|--------|
 | 1 | (merged, pre-v3) | Integrity / envelope | ✅ done (`engine/validator.py`) |
-| 2 | `feature/snip-level-2` | Requirement (framework + `?snip_level=` + IG required segs/elements) | ⬜ Not started |
+| 2 | `feature/snip-validation-level-2` | Requirement (framework + `?snip_level=` + IG required segs/elements) | ✅ built (pending merge) |
 | 3 | `feature/snip-level-3` | Balancing (837 totals; 835 payment math) | ⬜ Not started |
 | 4 | `feature/snip-level-4` | Situational (inter-segment rules) | ⬜ Not started |
 | 5 | `feature/snip-level-5` | Code sets (free sets; CPT gated) | ⬜ Not started |
 
+### What Level 2 shipped (files, branch `feature/snip-validation-level-2`)
+- Backend: `engine/validation/` package — `__init__.py` (`HIGHEST_LEVEL=2`),
+  `issue.py` (adds `level`), `level1.py` (facade over the existing envelope
+  logic), `level2.py` (dispatch), `runner.py` (parse once, run 1..N, dedup/sort),
+  and `rules/` (`common.py` + `t837p`, `t837i`, `t835`, `t834`, `t270_271`,
+  `t276_277`). `engine/validator.py` refactored to expose `validate_doc(doc)`
+  (Level-1 core) while `validate_edi(raw)` stays back-compatible.
+- Endpoint: `POST /edi/validate?snip_level=` (default highest = 2); report gains
+  `transaction_type` + `snip_level`; every issue carries `level`.
+- Frontend: SNIP-level selector on Converter options (auto-validation uses it),
+  per-issue `L1/L2` badge + "Validated to SNIP level N · TYPE" scope line.
+- Tests: `tests/test_snip_level2.py` (20 tests) — clean per type, requirement
+  failures, cumulative L1+L2, level gating, endpoint, out-of-range 422. Suite
+  now **126** (was 106). Frontend build green.
+- **Merge gate met.** After merge, bump nothing here except starting Level 3 on
+  a fresh branch from `main`.
+
 Legend: ⬜ Not started · 🟨 In progress · ✅ Done/merged
 
 ## 6.4 Which component / feature next
-- **Next action:** on go-ahead, create `feature/snip-level-2` (user) and build
-  **V3-L2** — the `engine/validation/` framework (`runner`, `issue` with `level`,
-  `level1` facade), `?snip_level=` on the endpoint, then `level2` + `rules/t837p`
-  (837P first), then the remaining in-scope types, then the UI level badge.
-- **Merge gate:** new + all existing tests green; default `snip_level` bumped;
-  this doc updated; then user merges to `main` before Level 3.
+- **Now:** user merges `feature/snip-validation-level-2` → `main` (all tests
+  green, docs updated).
+- **Next action:** after merge, from a fresh `main` create the Level 3 branch and
+  build **V3-L3** — `engine/validation/level3.py` (balancing): 837 `CLM02` == Σ
+  service-line charges; 835 `CLP`/`SVC`/`BPR` payment math (exact `Decimal`).
+  Bump `HIGHEST_LEVEL` to 3, extend the UI level selector to include Level 3,
+  add `tests/test_snip_level3.py`.
 - **No parser/mapper/FHIR changes** — validation reads the existing segments.
 
 ## 6.5 Open items / to confirm
-- [ ] Go-ahead to start **Level 2** (`feature/snip-level-2`).
+- [x] Level 2 built on `feature/snip-validation-level-2` — pending user merge.
+- [ ] After merge, start **Level 3** (balancing) on a fresh branch from `main`.
 - [ ] **CPT licensing** (AMA) for full Level 5 — ship free sets first; confirm
       whether/when to enable CPT membership validation.
 - [ ] Confirm the per-level **transaction-type scope & order** (default:
@@ -73,3 +94,17 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done/merged
 - v2 (FHIR) docs: `../v2/`.
 - Current Level-1 validator: `../../backend/engine/validator.py`;
   endpoint `POST /edi/validate` in `../../backend/main.py`.
+
+## 6.8 Cross-version notes
+- **Validation parity (both converters auto-validate, same source checks).**
+  The Converter page auto-validates the X12 file through the SNIP levels (v3).
+  The **FHIR page now auto-validates too**, and — importantly — its
+  `/edi/fhir/validate` endpoint **reuses this v3 SNIP runner** on raw-EDI input
+  (`stage:"snip"`, levelled) *in addition to* the v2 FHIR R4 Bundle check
+  (`stage:"fhir"`). This fixed an inconsistency where the FHIR page passed a
+  SNIP-broken 837 that the Converter flagged (a lenient mapper still yields a
+  structurally-valid Bundle). So the SNIP validator built here is now consumed
+  by **both** pages. JSON/XML exports skip SNIP (no X12 envelope).
+- The FHIR-side wiring lives in v2 — see `../v2/6-fhir-memory.md`. The SNIP
+  engine itself (`engine/validation/`) is unchanged by this; the FHIR endpoint
+  just calls `runner.validate(...)`.
