@@ -13,11 +13,12 @@
   (SNIP **Level 1** only), batch, maximize.
 - **v2 (FHIR):** complete (V2-A→D). 8 types → FHIR R4 Bundles + FHIR structural
   validation. See `../v2/6-fhir-memory.md`.
-- **v3 (SNIP L2–5):** **Levels 2 & 3 complete.**
+- **v3 (SNIP L2–5):** **Levels 2, 3 & 4 complete.**
   - Level 2 (Requirement) — merged to `main`.
-  - Level 3 (Balancing) — built on `feature/snip-validation-level-3`
-    (`HIGHEST_LEVEL=3`, default validation now runs L1+L2+L3). Backend **138
-    tests**, frontend build clean. Awaiting merge, then Level 4.
+  - Level 3 (Balancing) — merged to `main`.
+  - Level 4 (Situational) — built on `feature/snip-validation-level-4`
+    (`HIGHEST_LEVEL=4`, default validation now runs L1+L2+L3+L4). Backend **153
+    tests**, frontend build clean. Awaiting merge, then Level 5.
 
 ## 6.2 Locked decisions
 | # | Decision | Choice |
@@ -37,8 +38,8 @@
 |-------|--------|-------------|--------|
 | 1 | (merged, pre-v3) | Integrity / envelope | ✅ done (`engine/validator.py`) |
 | 2 | `feature/snip-validation-level-2` | Requirement (framework + `?snip_level=` + IG required segs/elements) | ✅ merged |
-| 3 | `feature/snip-validation-level-3` | Balancing (837 totals; 835 payment math) | ✅ built (pending merge) |
-| 4 | `feature/snip-level-4` | Situational (inter-segment rules) | ⬜ Not started |
+| 3 | `feature/snip-validation-level-3` | Balancing (837 totals; 835 payment math) | ✅ merged |
+| 4 | `feature/snip-validation-level-4` | Situational (inter-segment rules) | ✅ built (pending merge) |
 | 5 | `feature/snip-level-5` | Code sets (free sets; CPT gated) | ⬜ Not started |
 
 ### What Level 2 shipped (files, branch `feature/snip-validation-level-2`)
@@ -61,30 +62,35 @@
 Legend: ⬜ Not started · 🟨 In progress · ✅ Done/merged
 
 ## 6.4 Which component / feature next
-- **Now:** user merges `feature/snip-validation-level-3` → `main`.
-- **Next action:** after merge, from a fresh `main` create the Level 4 branch and
-  build **V3-L4** — `engine/validation/level4.py` (situational, "if A present
-  then B required") per transaction type; each rule cites its TR3 situational
-  note. Bump `HIGHEST_LEVEL` to 4, extend the UI selector, add
-  `tests/test_snip_level4.py`.
+- **Now:** user merges `feature/snip-validation-level-4` → `main`.
+- **Next action:** after merge, from a fresh `main` create the Level 5 branch and
+  build **V3-L5** — `engine/validation/level5.py` + `codesets/` (bundled free
+  sets: ICD-10-CM/PCS, HCPCS, POS, X12 internal lists). Validate coded values
+  against their set; **CPT is format-checked only, membership gated on AMA
+  licensing** (§6.5). Bump `HIGHEST_LEVEL` to 5, extend the UI selector, add
+  `tests/test_snip_level5.py`. **This is the final v3 level.**
 - **No parser/mapper/FHIR changes** — validation reads the existing segments.
 
-### What Level 3 shipped (branch `feature/snip-validation-level-3`)
-- Backend: `engine/validation/level3.py` (exact `Decimal`): 837 `CLM02` == Σ line
-  charges (SV1-02 / SV2-03); 835 line `SVC02 == SVC03 + Σ line CAS` and claim
-  `CLP03 == Σ SVC02`, `CLP04 == Σ SVC03`. Registered in `runner.py`;
-  `HIGHEST_LEVEL = 3`. **BPR-level balancing deliberately deferred** (sample BPR
-  totals are arbitrary; documented refinement).
-- Fixture: `837I-sample.edi` `CLM02 12500 → 750` (it was genuinely unbalanced);
-  `test_map_837i.py` assertion updated to `750`.
-- Frontend: SNIP selector gains **Level 3 — Balancing**; default → 3.
-- Tests: `tests/test_snip_level3.py` (10); default-level assertions updated to
-  `HIGHEST_LEVEL`. Suite **138** (was 128). Frontend build green.
+### What Level 3 shipped (merged)
+- `engine/validation/level3.py` (exact `Decimal`): 837 `CLM02` == Σ line charges;
+  835 line `SVC02 == SVC03 + Σ line CAS` and claim `CLP03 == Σ SVC02`,
+  `CLP04 == Σ SVC03`. Fixture `837I-sample.edi` `CLM02 → 750` (was unbalanced).
+  BPR-level balancing deferred (see §6.5).
+
+### What Level 4 shipped (branch `feature/snip-validation-level-4`)
+- Backend: `engine/validation/level4.py` (situational): 837 accident
+  (`CLM11` → `DTP*439`), COB (non-primary `SBR01` → other-payer 2320 loop),
+  837I admission (`CL1` → `DTP*435`); 834 coverage (`HD` → `DTP*348`).
+  Registered in `runner.py`; `HIGHEST_LEVEL = 4`.
+- Frontend: SNIP selector gains **Level 4 — Situational**; default → 4.
+- Tests: `tests/test_snip_level4.py` (15); Level-3 endpoint default assertion made
+  dynamic (`HIGHEST_LEVEL`). Suite **153** (was 138). Frontend build green.
 
 ## 6.5 Open items / to confirm
 - [x] Level 2 merged to `main`.
-- [x] Level 3 built on `feature/snip-validation-level-3` — pending user merge.
-- [ ] After merge, start **Level 4** (situational) on a fresh branch from `main`.
+- [x] Level 3 merged to `main`.
+- [x] Level 4 built on `feature/snip-validation-level-4` — pending user merge.
+- [ ] After merge, start **Level 5** (code sets) on a fresh branch from `main`.
 - [ ] **BPR-level 835 balancing** (`BPR02 = Σ CLP04 − Σ PLB`) deferred from L3 —
       revisit with realistic balanced samples (sign-aware PLB).
 - [ ] **CPT licensing** (AMA) for full Level 5 — ship free sets first; confirm

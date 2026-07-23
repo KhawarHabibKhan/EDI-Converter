@@ -91,8 +91,10 @@ def test_level2_does_not_run_balancing(sample_837p):
 #  Endpoint
 # --------------------------------------------------------------------------- #
 def test_endpoint_default_runs_level3(sample_837p):
+    from engine.validation import HIGHEST_LEVEL
+
     broken = sample_837p.replace("SV1*HC:99213:25*150.00*UN*1***1~", "SV1*HC:99213:25*100.00*UN*1***1~")
     resp = client.post("/edi/validate", files={"file": ("s.edi", broken.encode("utf-8"), "text/plain")})
     body = resp.json()
-    assert body["snip_level"] == 3
-    assert any(i["level"] == 3 for i in body["issues"])
+    assert body["snip_level"] == HIGHEST_LEVEL  # default = highest implemented (>= 3)
+    assert any(i["level"] == 3 for i in body["issues"])  # balancing runs cumulatively

@@ -7,7 +7,8 @@ data-driven — zero new runtime dependencies. The public entry point is
 
 See docx/v3/ for the design, rules, and per-level rule reference.
 
-Implemented so far: Level 1 (envelope), Level 2 (requirement), Level 3 (balancing).
+Implemented so far: Level 1 (envelope), Level 2 (requirement), Level 3 (balancing),
+Level 4 (situational).
 """
 
-HIGHEST_LEVEL = 3
+HIGHEST_LEVEL = 4
