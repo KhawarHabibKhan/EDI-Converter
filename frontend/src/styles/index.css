@@ -191,14 +191,14 @@ header.bar {
   transition: border-color .18s, background .18s;
 }
 .drop.drag { border-color: var(--accent); background: var(--accent-soft); }
-textarea#edi {
+.drop textarea {
   width: 100%; min-height: 260px; resize: vertical;
   background: transparent; border: 0; outline: none;
   padding: 15px 16px; color: var(--ink);
   font-family: "JetBrains Mono", monospace; font-size: 0.82rem; line-height: 1.65;
   tab-size: 2;
 }
-textarea#edi::placeholder { color: var(--ink-mute); }
+.drop textarea::placeholder { color: var(--ink-mute); }
 .drop-hint {
   position: absolute; right: 12px; bottom: 10px;
   font-size: 0.72rem; color: var(--ink-mute); pointer-events: none;
@@ -292,6 +292,18 @@ textarea#edi::placeholder { color: var(--ink-mute); }
 .btn.subtle { color: var(--ink-mute); background: transparent; margin-left: auto; padding: 11px 12px; }
 .btn.subtle:hover { color: var(--crit); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none; }
+
+/* "Forward to FHIR" hand-off (Converter result panel) */
+.forward-bar {
+  display: flex; justify-content: center;
+  margin-top: 14px; padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+}
+.forward-btn {
+  color: #fff; background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  box-shadow: 0 10px 24px -10px var(--accent);
+}
+.forward-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 16px 30px -12px var(--accent); }
 
 /* ---------- Result panel ---------- */
 .result { min-height: 480px; }
@@ -412,6 +424,35 @@ table.grid-table tr:hover td { background: var(--accent-soft); }
   .aurora span { animation: none; }
   * { transition-duration: 0.01ms !important; }
 }
+
+/* ---------- Top nav (Converter · FHIR) ---------- */
+.nav {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px; border-radius: 999px;
+  background: var(--glass-inner); border: 1px solid var(--hairline);
+}
+.nav-link {
+  font: inherit; font-size: 0.82rem; font-weight: 600; text-decoration: none;
+  color: var(--ink-soft); padding: 7px 15px; border-radius: 999px;
+  transition: color .15s, background .15s;
+}
+.nav-link:hover { color: var(--accent); }
+.nav-link.active {
+  color: #fff; background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 16px -8px var(--accent);
+}
+@media (max-width: 900px) { .nav { order: 3; width: 100%; justify-content: center; } }
+
+.fhir-note {
+  font-size: 0.78rem; line-height: 1.6; color: var(--ink-mute);
+  margin: -4px 0 0; padding: 11px 13px; border-radius: var(--radius-sm);
+  background: var(--glass-inner); border: 1px solid var(--hairline);
+}
+.fhir-note code {
+  font-family: "JetBrains Mono", monospace; font-size: 0.9em;
+  color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 5px;
+}
+.seg-btn:disabled { cursor: default; opacity: 1; }
 
 /* Slim scrollbars */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
