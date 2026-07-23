@@ -1,0 +1,34 @@
+# ICD-10-CM diagnosis codes — SEED SUBSET (not the full CMS set).
+# The full set (~74k codes) is FREE from CMS; drop it in here to enable complete
+# validation — no code change needed (see README.md).
+# Source: https://www.cms.gov/medicare/coding-billing/icd-10-codes
+# Codes are stored WITHOUT the decimal point, as they appear in X12 (E119 = E11.9).
+#
+# --- codes used by the bundled sample fixtures ---
+J209
+R05
+J0300
+Z1159
+J189
+E1122
+R079
+R51
+# --- common codes (illustrative seed) ---
+E119
+I10
+Z0000
+Z00121
+J449
+J45909
+N179
+E785
+M545
+K219
+F419
+I2510
+I509
+E039
+D649
+R101
+R51
+Z23

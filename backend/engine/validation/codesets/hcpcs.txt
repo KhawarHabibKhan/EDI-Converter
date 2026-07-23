@@ -1,0 +1,20 @@
+# HCPCS Level II codes — SEED SUBSET (not the full CMS set).
+# The full set is FREE from CMS; drop it in here for complete validation — no
+# code change needed (see README.md).
+# Source: https://www.cms.gov/medicare/coding-billing/healthcare-common-procedure-system
+#
+# NOTE: 5-digit numeric CPT codes are AMA-licensed and are NOT listed here.
+# Level 5 format-checks CPT-range codes only and reports that membership was not
+# validated (licensing pending). See README.md and ../level5.py.
+#
+# --- illustrative seed of valid HCPCS Level II codes ---
+J1885
+J3490
+A4550
+G0008
+G0009
+E0114
+Q4074
+J0696
+A9270
+E0601

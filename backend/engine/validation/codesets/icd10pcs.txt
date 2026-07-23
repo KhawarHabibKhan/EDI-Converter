@@ -1,0 +1,13 @@
+# ICD-10-PCS inpatient procedure codes — SEED SUBSET (not the full CMS set).
+# The full set (~78k codes) is FREE from CMS; drop it in here for complete
+# validation — no code change needed (see README.md).
+# Source: https://www.cms.gov/medicare/coding-billing/icd-10-codes
+#
+# --- codes used by the bundled sample fixtures ---
+0DTJ4ZZ
+# --- common codes (illustrative seed) ---
+0DTJ0ZZ
+02703ZZ
+0FB03ZX
+0W9G3ZZ
+0SRD0J9
