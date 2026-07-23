@@ -13,10 +13,11 @@
   (SNIP **Level 1** only), batch, maximize.
 - **v2 (FHIR):** complete (V2-A→D). 8 types → FHIR R4 Bundles + FHIR structural
   validation. See `../v2/6-fhir-memory.md`.
-- **v3 (SNIP L2–5):** **Level 2 complete** (branch `feature/snip-validation-level-2`).
-  Framework + `?snip_level=` + requirement rules for all in-scope types built and
-  green (backend **126 tests**, frontend build clean). Awaiting merge to `main`,
-  then Level 3.
+- **v3 (SNIP L2–5):** **Levels 2 & 3 complete.**
+  - Level 2 (Requirement) — merged to `main`.
+  - Level 3 (Balancing) — built on `feature/snip-validation-level-3`
+    (`HIGHEST_LEVEL=3`, default validation now runs L1+L2+L3). Backend **138
+    tests**, frontend build clean. Awaiting merge, then Level 4.
 
 ## 6.2 Locked decisions
 | # | Decision | Choice |
@@ -35,8 +36,8 @@
 | Level | Branch | Description | Status |
 |-------|--------|-------------|--------|
 | 1 | (merged, pre-v3) | Integrity / envelope | ✅ done (`engine/validator.py`) |
-| 2 | `feature/snip-validation-level-2` | Requirement (framework + `?snip_level=` + IG required segs/elements) | ✅ built (pending merge) |
-| 3 | `feature/snip-level-3` | Balancing (837 totals; 835 payment math) | ⬜ Not started |
+| 2 | `feature/snip-validation-level-2` | Requirement (framework + `?snip_level=` + IG required segs/elements) | ✅ merged |
+| 3 | `feature/snip-validation-level-3` | Balancing (837 totals; 835 payment math) | ✅ built (pending merge) |
 | 4 | `feature/snip-level-4` | Situational (inter-segment rules) | ⬜ Not started |
 | 5 | `feature/snip-level-5` | Code sets (free sets; CPT gated) | ⬜ Not started |
 
@@ -60,18 +61,32 @@
 Legend: ⬜ Not started · 🟨 In progress · ✅ Done/merged
 
 ## 6.4 Which component / feature next
-- **Now:** user merges `feature/snip-validation-level-2` → `main` (all tests
-  green, docs updated).
-- **Next action:** after merge, from a fresh `main` create the Level 3 branch and
-  build **V3-L3** — `engine/validation/level3.py` (balancing): 837 `CLM02` == Σ
-  service-line charges; 835 `CLP`/`SVC`/`BPR` payment math (exact `Decimal`).
-  Bump `HIGHEST_LEVEL` to 3, extend the UI level selector to include Level 3,
-  add `tests/test_snip_level3.py`.
+- **Now:** user merges `feature/snip-validation-level-3` → `main`.
+- **Next action:** after merge, from a fresh `main` create the Level 4 branch and
+  build **V3-L4** — `engine/validation/level4.py` (situational, "if A present
+  then B required") per transaction type; each rule cites its TR3 situational
+  note. Bump `HIGHEST_LEVEL` to 4, extend the UI selector, add
+  `tests/test_snip_level4.py`.
 - **No parser/mapper/FHIR changes** — validation reads the existing segments.
 
+### What Level 3 shipped (branch `feature/snip-validation-level-3`)
+- Backend: `engine/validation/level3.py` (exact `Decimal`): 837 `CLM02` == Σ line
+  charges (SV1-02 / SV2-03); 835 line `SVC02 == SVC03 + Σ line CAS` and claim
+  `CLP03 == Σ SVC02`, `CLP04 == Σ SVC03`. Registered in `runner.py`;
+  `HIGHEST_LEVEL = 3`. **BPR-level balancing deliberately deferred** (sample BPR
+  totals are arbitrary; documented refinement).
+- Fixture: `837I-sample.edi` `CLM02 12500 → 750` (it was genuinely unbalanced);
+  `test_map_837i.py` assertion updated to `750`.
+- Frontend: SNIP selector gains **Level 3 — Balancing**; default → 3.
+- Tests: `tests/test_snip_level3.py` (10); default-level assertions updated to
+  `HIGHEST_LEVEL`. Suite **138** (was 128). Frontend build green.
+
 ## 6.5 Open items / to confirm
-- [x] Level 2 built on `feature/snip-validation-level-2` — pending user merge.
-- [ ] After merge, start **Level 3** (balancing) on a fresh branch from `main`.
+- [x] Level 2 merged to `main`.
+- [x] Level 3 built on `feature/snip-validation-level-3` — pending user merge.
+- [ ] After merge, start **Level 4** (situational) on a fresh branch from `main`.
+- [ ] **BPR-level 835 balancing** (`BPR02 = Σ CLP04 − Σ PLB`) deferred from L3 —
+      revisit with realistic balanced samples (sign-aware PLB).
 - [ ] **CPT licensing** (AMA) for full Level 5 — ship free sets first; confirm
       whether/when to enable CPT membership validation.
 - [ ] Confirm the per-level **transaction-type scope & order** (default:

@@ -124,7 +124,7 @@ def test_validate_endpoint_surfaces_source_snip_errors(sample_837p):
     assert resp.status_code == 200
     body = resp.json()
     assert body["valid"] is False
-    assert body["snip_level"] == 2
+    assert body["snip_level"] >= 2
     snip_issues = [i for i in body["issues"] if i.get("stage") == "snip"]
     assert any("SV1" in i["segment"] for i in snip_issues)
 

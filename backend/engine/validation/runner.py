@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from engine import detector, x12_reader
-from engine.validation import HIGHEST_LEVEL, issue, level1, level2
+from engine.validation import HIGHEST_LEVEL, issue, level1, level2, level3
 
 
 def validate(raw: str, snip_level: Optional[int] = None) -> Dict[str, Any]:
@@ -37,6 +37,8 @@ def validate(raw: str, snip_level: Optional[int] = None) -> Dict[str, Any]:
 
     if level >= 2 and txn_type:
         issues += level2.check(doc, txn_type)
+    if level >= 3 and txn_type:
+        issues += level3.check(doc, txn_type)
 
     return {
         "transaction_type": txn_type,
