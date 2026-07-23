@@ -118,6 +118,21 @@ format, and gets correct JSON or XML, all backed by our own Docker container.
 
 ---
 
+## Phase 9 — UX Enhancements (post-v1, implemented)
+
+- **9.1** **Maximize the Result panel** — a button expands the output into a large
+  centered glass overlay (~2/3+ of the screen); closes via ✕, Esc, or backdrop.
+- **9.2** **Automatic validation** — validate on file add (upload/drop/sample/
+  paste, debounced 600 ms); show the full report in the output panel + a validity
+  chip in the Source header. The manual "Validate" button was removed.
+- **9.3** **Aesthetic loading** — minimum loading windows (~2 s conversion,
+  ~2–3 s validation) via `Promise.all([apiCall, sleep()])`, race-guarded with a
+  `source` tag so auto-validation never overwrites a user conversion.
+
+**Done when:** maximize, auto-validation, and the loading animations work in the UI.
+
+---
+
 ## Later / Optional (post-v1)
 
 - EDI **generation** (JSON → EDI).

@@ -52,24 +52,40 @@ frontend/
 ## 8.3 State model
 
 ```ts
-type TransactionType = "auto" | "837P" | "837I" | "835" | "834" | "271" | "277";
-type OutputFormat = "json" | "xml"; // CSV/validation are later phases
+type TransactionType = "auto" | "837P" | "837I" | "835" | "834" | "270" | "271" | "276" | "277";
+type Format = "json" | "xml" | "csv";
+
+// The result panel is a discriminated union (implemented in App.tsx):
+type Result =
+  | { kind: "placeholder" }
+  | { kind: "loading"; label: string; source?: "convert" | "validate" }
+  | { kind: "error" | "info"; title: string; detail: string }
+  | { kind: "json" | "xml"; html: string; raw: string; badge: string }
+  | { kind: "csv"; text: string; badge: string }
+  | { kind: "validation"; report: ValidationResult }
+  | { kind: "batch"; rows; raw: string; ext: string; badge: string };
 
 interface AppState {
-  file: File | null;
-  transactionType: TransactionType;   // default "auto"
-  format: OutputFormat;               // default "json"
-  status: "idle" | "loading" | "success" | "error";
-  result: ConversionResult | null;
-  error: string | null;
+  edi: string; fileName: string; apiBase: string;
+  txnType: TransactionType;            // default "auto"
+  format: Format;                      // default "json"
+  batchFiles: File[];                  // multi-file batch
+  result: Result;
+  validity: { kind: "valid"|"warn"|"error"|"checking"; label } | null; // auto-validate chip
+  maximized: boolean;                  // result overlay open
 }
 ```
 
-Flow (in `useConvert.ts`):
+Flow:
 ```
-idle → (file selected) → loading → success (show result)
-                                  ↘ error (show ErrorBanner, keep file+selection)
+add file/paste → (debounce 600ms) → auto-validate: loading(source=validate)
+                → validation report + validity chip
+pick format + Convert → loading(source=convert) → JSON/XML/CSV result
 ```
+- **Loading windows:** min ~2 s (convert) / ~2–3 s (validate) via
+  `Promise.all([apiCall, sleep()])`.
+- **Race guard:** auto-validation owns the panel only when it's not showing a
+  conversion (checks `source` on the loading state).
 
 ---
 
@@ -80,12 +96,16 @@ idle → (file selected) → loading → success (show result)
 | `Header` | title, theme toggle (later) | — |
 | `ControlsBar` | holds type + format controls | — |
 | `TypeSelector` | `value`, `onChange` — dropdown of 7 options | default "Auto-detect" |
-| `FormatToggle` | segmented output-format selector: JSON / XML | active pill |
+| `FormatToggle` | segmented output-format selector: JSON / XML / CSV | active pill |
 | `ConvertButton` | single primary action — converts to the selected format | idle / loading |
-| `FileUpload` | `onFile(file)` — dropzone + hidden `<input>` | idle / dragover / uploading / success / error |
-| `ResultViewer` | `data`, `fileName` — formatted JSON, copy + download | empty / loading / populated |
-| `IssueList` | `issues[]` — severity icon + message + segment/line | empty / has-issues |
-| `ErrorBanner` | `message`, `onDismiss` | shown on error |
+| `FileUpload` | dropzone + paste + multi-file (batch) | idle / dragover / loading |
+| Result viewer | formatted JSON/XML/CSV, copy + download | empty / loading / populated |
+| **Validity chip** | auto-validation status in Source header | valid / warn / error / checking |
+| **Maximize overlay** | expands result to a large centered glass panel | open / closed (Esc/backdrop) |
+| Issue list | severity icon + message + segment/line (validation report) | empty / has-issues |
+
+> No separate "Validate" button — validation runs automatically on file add
+> (the button was removed as redundant).
 
 ### Interaction rules (from `5-design.md`)
 - Dropzone highlights on dragover; also clickable to open file picker.

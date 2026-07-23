@@ -14,9 +14,12 @@ phases, design, the two implementation plans, and the living progress log
 - **Transaction types:** 837P, 837I, 835, 834, 270, 271, 276, 277
 - **Auto-detection** of the transaction type (or force it)
 - **Output formats:** JSON, XML, CSV
-- **Structural validation** (ISA/IEA, GS/GE, ST/SE pairing, control numbers,
-  segment counts) with a clear issue report
+- **Automatic structural validation** on file add (ISA/IEA, GS/GE, ST/SE
+  pairing, control numbers, segment counts) — report shown automatically plus a
+  validity chip; no button needed
 - **Batch** conversion of multiple files into one combined download
+- **Maximize** the result into a large centered overlay for easy reading
+- Realistic loading animation (~2 s convert / ~2–3 s validate)
 - Glassmorphism UI, light/dark theme, paste / drag-drop / upload, copy & download
 - 100% self-hosted; files processed in memory, never stored
 

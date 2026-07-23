@@ -74,6 +74,16 @@ page). Everything else builds on those two.
 - [ ] Clear **error messages** when a file is not valid EDI
 - [ ] Backend runs fully inside **Docker** (no external engine)
 
+### UX enhancements (post-v1, implemented)
+- [x] **Automatic validation** — files are validated the moment they are added
+      (upload/drop/sample/paste, debounced); the full report shows in the output
+      panel and a compact **validity chip** appears in the Source header. The
+      manual "Validate" button was removed as redundant.
+- [x] **Maximize the Result panel** — a button expands the output into a large
+      centered glass overlay (~2/3+ of the screen); closes via ✕, Esc, or backdrop.
+- [x] **Realistic loading animation** — a minimum loading window (~2 s for
+      conversions, ~2–3 s for validation) so operations feel real, not instant.
+
 ### Should-have (v2)
 - [ ] **CSV** output format for tabular data (claims, service lines, payments)
 - [ ] **Validation report** — list of issues with segment/line references

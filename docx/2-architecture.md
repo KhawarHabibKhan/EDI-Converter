@@ -15,11 +15,12 @@ replacement** for the commercial datainsight.health engine.
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                          BROWSER (Frontend)                        │
-│   React + TypeScript + Tailwind                                    │
-│   • Upload EDI file                                                │
+│   React + TypeScript (pure-CSS design system)                      │
+│   • Upload / drop / paste EDI  → AUTO-VALIDATES on add             │
 │   • Pick transaction type (Auto / 837P / 837I / 835 / 834 / 271 / 277)
-│   • Pick output format (JSON / XML) then Convert                   │
-│   • View + download result                                         │
+│   • Pick output format (JSON / XML / CSV) then Convert             │
+│   • View + download result; MAXIMIZE into a large overlay          │
+│   • Realistic loading animation (~2 s convert, ~2-3 s validate)    │
 └───────────────────────────────┬────────────────────────────────── ┘
                                  │  HTTP (multipart upload / JSON)
                                  ▼
@@ -113,7 +114,9 @@ EDI-Converter/
 │       ├── components/
 │       │   ├── FileUpload.tsx     # drag & drop
 │       │   ├── TypeSelector.tsx   # transaction-type dropdown
-│       │   ├── FormatToggle.tsx   # output-format selector: JSON / XML
+│       │   ├── FormatToggle.tsx   # output-format selector: JSON / XML / CSV
+│       │   ├── (result maximize overlay — large centered glass panel)
+│       │   ├── (validity chip — auto-validation status in Source header)
 │       │   ├── ResultViewer.tsx   # formatted JSON viewer + download
 │       │   └── ErrorBanner.tsx
 │       ├── styles/                # Tailwind + theme tokens

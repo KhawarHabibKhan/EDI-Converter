@@ -1,7 +1,7 @@
 # 6 — Project Memory (Living Progress Log)
 
 > **Project name:** EDI-Converter
-> **Last updated:** 2026-07-21 (Phases 0–8 COMPLETE — project done)
+> **Last updated:** 2026-07-23 (Phases 0–8 done + Phase 9 UX enhancements)
 >
 > This is the **living state** of the project. Read this FIRST before working.
 > Update it whenever something is completed, started, or changed.
@@ -23,66 +23,66 @@
   `7-backend-plan.md` and `8-frontend-plan.md`.
 - [X] **Phase 0 — Scaffolding COMPLETE & VERIFIED:**
   - `backend/` FastAPI app with `GET /health` + `GET /` — verified via real
-  uvicorn run and `pytest` (2/2 passing).
+    uvicorn run and `pytest` (2/2 passing).
   - `backend/Dockerfile`, `requirements.txt`, `config.py`, `engine/` package
-  skeleton.
+    skeleton.
   - `frontend/` React + TS + Vite + Tailwind — `npm run build` succeeds;
-  `App.tsx` calls `/health` and shows connection status.
+    `App.tsx` calls `/health` and shows connection status.
   - `docker-compose.yml` (validated), root `README.md`, `.env.example`,
-  `.gitignore`, `samples/` folders.
+    `.gitignore`, `samples/` folders.
 - [X] **Phase 1 — 837P conversion COMPLETE & VERIFIED (vertical slice):**
   - `engine/x12_reader.py` — tokenizer + ISA delimiter auto-detect.
   - `engine/mappers/map_837.py` — full 837P mapper (ported from
-  `edi_1500_to_json.py`); also flags 837I via X223 implementation guide.
+    `edi_1500_to_json.py`); also flags 837I via X223 implementation guide.
   - `engine/converter.py` — `convert_edi(raw, type)` with dispatch table.
   - `POST /edi/json` in `main.py` — upload validation (size/ext/empty),
-  structured errors, returns `{transaction_type, file_name, data, issues}`.
+    structured errors, returns `{transaction_type, file_name, data, issues}`.
   - Tests: **10/10 passing** (`test_map_837.py`, `test_api.py`) incl. the
-  real `837P-all-fields.dat` and `sample_837p.edi` fixtures.
+    real `837P-all-fields.dat` and `sample_837p.edi` fixtures.
   - Frontend: `FileUpload` (drag/drop + a11y), `ResultViewer` (JSON + copy +
-  download), `ErrorBanner`; `App.tsx` orchestrates upload→convert→view.
-  `npm run build` passes.
+    download), `ErrorBanner`; `App.tsx` orchestrates upload→convert→view.
+    `npm run build` passes.
   - **End-to-end verified:** real 837P POSTed over HTTP → correct JSON.
 - [X] **Phase 2 — Auto-detection & type selector COMPLETE & VERIFIED:**
   - `engine/detector.py` — `detect_transaction_type(raw)` / `detect_from_doc`
-  read the ST segment (+ ST03/GS08 version to split 837P vs 837I).
+    read the ST segment (+ ST03/GS08 version to split 837P vs 837I).
   - `converter.convert_edi(raw, "auto")` parses once, detects, dispatches;
-  recognized-but-unmapped types (835/834/271/277) raise a friendly
-  `UnsupportedTransactionError` naming the type + its future phase.
+    recognized-but-unmapped types (835/834/271/277) raise a friendly
+    `UnsupportedTransactionError` naming the type + its future phase.
   - `/edi/json` and `/edi/xml` now default `type=auto`.
   - Frontend: **Transaction-type dropdown** (Auto · 837P · 837I · 835 · 834 ·
-  271 · 277) in Options, passed through to the API; removed the old
-  client-side 837-only gate (backend decides now).
+    271 · 277) in Options, passed through to the API; removed the old
+    client-side 837-only gate (backend decides now).
   - Tests: **27/27 passing** (added `test_detector.py`, API auto + 400 tests).
 - [X] **Phase 3 — 837I (Institutional / UB-04) COMPLETE & VERIFIED:**
   - `map_837.py` extended: detects institutional (X223) up front and emits
-  UB-04 fields — SV2 service lines (revenue code / HCPCS / units / charge),
-  CL1 admission (type/source/patient status), type-of-bill, DRG, procedures
-  (ICD-10-PCS), occurrence / value / condition codes, statement + admission
-  dates, attending/operating providers.
+    UB-04 fields — SV2 service lines (revenue code / HCPCS / units / charge),
+    CL1 admission (type/source/patient status), type-of-bill, DRG, procedures
+    (ICD-10-PCS), occurrence / value / condition codes, statement + admission
+    dates, attending/operating providers.
   - **Field rename** (shared by both forms): `box_26_patient_account_no → patient_account_no`, `box_28_total_charge → total_charge`,
-  `box_24_service_lines → service_lines`, SBR boxes → plain names. Inner
-  line fields keep CMS-1500 (`box_24*`) vs UB-04 (`box_42/44/46/47`) names.
+    `box_24_service_lines → service_lines`, SBR boxes → plain names. Inner
+    line fields keep CMS-1500 (`box_24*`) vs UB-04 (`box_42/44/46/47`) names.
   - New `tests/fixtures/837I-sample.edi` + `test_map_837i.py`.
   - Tests: **32/32 passing**. Works for both JSON and XML (shared serializer).
 - [X] **Phases 4 & 5 — 835 / 834 / 271 / 277 COMPLETE & VERIFIED:**
   - Shared `mappers/_common.py` (name/date parsing, entity map).
   - `map_835.py` — payment (BPR/TRN), payer/payee (N1), claim payments (CLP),
-  service payments (SVC), adjustments (CAS group/reason/amount), PLB.
+    service payments (SVC), adjustments (CAS group/reason/amount), PLB.
   - `map_834.py` — sponsor/payer (N1), members (INS) with demographics,
-  references, and health coverage (HD) + dates.
+    references, and health coverage (HD) + dates.
   - `map_271.py` — HL hierarchy (source→receiver→subscriber→dependent) with
-  EB eligibility/benefit segments (service-type repetition split).
+    EB eligibility/benefit segments (service-type repetition split).
   - `map_277.py` — claim-status loops with STC composite (category/status/
-  entity), per-claim + per-service statuses.
+    entity), per-claim + per-service statuses.
   - Registered all four in `converter._MAPPERS`; `_PLANNED` now only 270/276.
   - Fixtures: real `271-sample.edi` + authored `835/834/277-sample.edi`.
-  Tests `test_map_financial.py` + `test_map_eligibility.py`.
+    Tests `test_map_financial.py` + `test_map_eligibility.py`.
   - **All 6 transaction types now convert end-to-end.** Tests: **41/41**.
   - **270 & 276 added** (request-side twins): `map_271` also handles 270 (EQ
-  inquiry segments), `map_277` also handles 276. Registered in dispatch;
-  `_PLANNED` now empty. Frontend dropdown lists 270/276 too. Tests: **42/42**.
-  (Note: files in the `271/` folder named "…request…" are actually 270s.)
+    inquiry segments), `map_277` also handles 276. Registered in dispatch;
+    `_PLANNED` now empty. Frontend dropdown lists 270/276 too. Tests: **42/42**.
+    (Note: files in the `271/` folder named "…request…" are actually 270s.)
 - [X] **Phase 6 — Validation COMPLETE:** `engine/validator.py` (ISA/IEA, GS/GE,
   ST/SE pairing, control-number matching, segment counts) → issue list;
   `POST /edi/validate` → `{valid, error_count, warning_count, issues[]}`;
@@ -95,10 +95,21 @@
   loading/empty/error states, responsive; error handling reviewed; README
   rewritten with API table + features; fixed SE counts in all sample files so
   they validate clean.
+- [X] **Phase 9 — UX enhancements COMPLETE (frontend only):**
+  - **Maximize** button on the Result panel → large centered glass overlay
+    (`88vw × 90vh`, capped 1500px); closes via ✕ / Esc / backdrop.
+  - **Automatic validation** on file add (debounced 600 ms) → full report in the
+    output panel + a validity chip in the Source header. **Removed the manual
+    Validate button** and its handler.
+  - **Aesthetic loading:** min ~2 s (convert) / ~2–3 s (validate) via
+    `Promise.all([apiCall, sleep()])`; race-guarded with a `source` tag so
+    auto-validation never overwrites a user conversion.
+  - Files: `frontend/src/App.tsx`, `frontend/src/styles/index.css`. No backend
+    change (the `/edi/validate` endpoint already existed).
 
 ## 6.2 Which Component / Feature We Are Working On
 
-- **Current phase:** _All phases (0–8) complete._ Project is feature-complete.
+- **Current phase:** _All phases (0–9) complete._ Project is feature-complete.
 - **Current component:** none — maintenance / optional post-v1 items only.
 - **Next action (optional / post-v1):** EDI generation (JSON→EDI), persistence +
   search, auth, per-file batch validation. See `4-phases.md` "Later / Optional".
@@ -113,17 +124,18 @@
 
 ## 6.4 Progress by Phase
 
-| Phase | Description                      | Status  |
-| ----- | -------------------------------- | ------- |
-| 0     | Setup & scaffolding              | ✅ Done |
-| 1     | 837P conversion (vertical slice) | ✅ Done |
-| 2     | Auto-detection & type selector   | ✅ Done |
-| 3     | 837I                             | ✅ Done |
-| 4     | 835 & 834                        | ✅ Done |
-| 5     | 271 & 277                        | ✅ Done |
-| 6     | Validation                       | ✅ Done |
-| 7     | CSV output & batch               | ✅ Done |
-| 8     | Polish & hardening               | ✅ Done |
+| Phase | Description                                        | Status  |
+| ----- | -------------------------------------------------- | ------- |
+| 0     | Setup & scaffolding                                | ✅ Done |
+| 1     | 837P conversion (vertical slice)                   | ✅ Done |
+| 2     | Auto-detection & type selector                     | ✅ Done |
+| 3     | 837I                                               | ✅ Done |
+| 4     | 835 & 834                                          | ✅ Done |
+| 5     | 271 & 277                                          | ✅ Done |
+| 6     | Validation                                         | ✅ Done |
+| 7     | CSV output & batch                                 | ✅ Done |
+| 8     | Polish & hardening                                 | ✅ Done |
+| 9     | UX enhancements (maximize, auto-validate, loading) | ✅ Done |
 
 Legend: ⬜ Not started · 🟨 In progress · ✅ Done
 
@@ -149,7 +161,7 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done
 ## 6.6 Open Questions / To Confirm
 
 - [ ] Confirm final X12 library: **pyx12** vs `bots` vs `badX12` (Phase 1.1).
-- [ ] Confirm we have sample files for **every** type (have 837P + 271; need
+- [X] Confirm we have sample files for **every** type (have 837P + 271; need
   837I, 835, 834, 277 samples for tests).
 - [ ] Backend port: keep `:5080` for parity, or move to a fresh port?
 - [ ] Deployment target for later (local only, or a server)?

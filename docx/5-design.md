@@ -79,16 +79,28 @@ text). Never rely on color alone to signal status — pair with an icon/label.
 ### Component states (every interactive element defines all of these)
 - **Default / Hover / Active / Focus (visible ring) / Disabled**
 - Upload: **idle → dragover (highlight) → uploading (spinner) → success / error**
-- Result: **empty ("no file yet") → loading → populated → error**
+- Result: **empty → loading (spinner) → populated (JSON/XML/CSV/validation) → error**
 
-### Key components (map to `frontend/src/components/`)
-- `FileUpload` — dropzone, shows file name + size once selected.
+### Key components
+- `FileUpload` — dropzone + paste area; shows file name once selected.
 - `TypeSelector` — dropdown, default "Auto-detect".
-- `FormatToggle` — segmented control for the **output format** (JSON / XML);
+- `FormatToggle` — segmented control for the **output format** (JSON / XML / CSV);
   the user selects it, then presses **Convert**.
-- `ResultViewer` — monospace, syntax-highlighted, collapsible tree; copy +
-  download.
-- `ErrorBanner` — red surface, icon + message, dismissible.
+- Result viewer — monospace, syntax-highlighted; copy + download.
+- **Validity chip** (Source header) — auto-validation status:
+  🟢 Valid · 🟠 N warnings · 🔴 N errors · (pulsing) Validating…
+- **Maximize overlay** — a button expands the result into a large **centered
+  glass overlay** (~2/3+ of the screen; `88vw × 90vh`, capped `1500px`). Dim +
+  blur backdrop; close via ✕, **Esc**, or backdrop click.
+- Error / info states — colored icon tile + title + message inside the result panel.
+
+### Motion & loading (perceived-performance)
+- Every conversion/validation shows the result-panel **spinner for a realistic
+  minimum window** — **~2 s** for conversions, **~2–3 s** for validation — even
+  when the backend responds instantly, so actions feel real rather than robotic.
+- Implemented as `Promise.all([apiCall, sleep(ms)])` (waits *at least* the
+  window, never window + request). Respect `prefers-reduced-motion` for the
+  ambient aurora; the spinner itself stays (it conveys status).
 
 ### Spacing & shape
 - Base spacing unit: **4px**; use multiples (8, 12, 16, 24, 32).
