@@ -380,6 +380,31 @@ table.grid-table tr:hover td { background: var(--accent-soft); }
 .pill-ok { color: var(--good); font-weight: 700; }
 .pill-bad { color: var(--crit); font-weight: 700; }
 
+/* Auto-validation chip in the Source panel header */
+.validity {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+  background: var(--glass-inner); border: 1px solid var(--hairline); color: var(--ink-soft);
+}
+.validity .vdot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-mute); }
+.validity.valid { color: var(--good); } .validity.valid .vdot { background: var(--good); }
+.validity.warn { color: var(--warn); } .validity.warn .vdot { background: var(--warn); }
+.validity.error { color: var(--crit); } .validity.error .vdot { background: var(--crit); }
+.validity.checking .vdot { background: var(--warn); animation: pulse 1.1s ease-in-out infinite; }
+
+/* Maximized result overlay (~2/3 of the screen) */
+.overlay-backdrop {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  padding: 20px; background: rgba(6, 20, 24, 0.45);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.overlay-panel {
+  width: min(1500px, 88vw); max-width: 96vw; height: 90vh;
+  display: flex; flex-direction: column; padding: 22px;
+}
+.overlay-panel .output { max-height: none; flex: 1; }
+@media (max-width: 900px) { .overlay-panel { width: 95vw; height: 92vh; } }
+
 .footnote { text-align: center; margin-top: 30px; font-size: 0.78rem; color: var(--ink-mute); line-height: 1.7; }
 .footnote code { font-family: "JetBrains Mono", monospace; background: var(--glass-inner); padding: 2px 7px; border-radius: 6px; }
 

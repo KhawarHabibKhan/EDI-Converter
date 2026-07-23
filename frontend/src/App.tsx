@@ -21,9 +21,13 @@ interface BatchRow {
   badge: string;
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const CONVERT_MIN_MS = 2000;   // realistic loading time for conversions
+const VALIDATE_MIN_MS = 2200;  // realistic loading time for auto-validation
+
 type Result =
   | { kind: "placeholder" }
-  | { kind: "loading"; label: string }
+  | { kind: "loading"; label: string; source?: "convert" | "validate" }
   | { kind: "error"; title: string; detail: string }
   | { kind: "info"; title: string; detail: string }
   | { kind: "json" | "xml"; html: string; raw: string; badge: string }
@@ -74,6 +78,10 @@ export default function App() {
   const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [result, setResult] = useState<Result>({ kind: "placeholder" });
   const [copied, setCopied] = useState(false);
+  const [maximized, setMaximized] = useState(false);
+  const [validity, setValidity] = useState<
+    null | { kind: "valid" | "warn" | "error" | "checking"; label: string }
+  >(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
@@ -94,6 +102,63 @@ export default function App() {
     const t = setTimeout(ping, 300);
     return () => clearTimeout(t);
   }, [ping]);
+
+  // When the EDI content itself changes, drop any stale conversion result so the
+  // fresh auto-validation can take the panel (but keep an existing validation view).
+  useEffect(() => {
+    setResult((prev) =>
+      prev.kind === "validation" || prev.kind === "placeholder" ? prev : { kind: "placeholder" }
+    );
+  }, [edi]);
+
+  // Auto-validate whenever EDI content changes (upload / drop / sample / paste),
+  // debounced so it doesn't fire on every keystroke. Batch uploads are skipped.
+  // The full report is shown in the output panel automatically, and a compact
+  // chip appears in the Source header.
+  useEffect(() => {
+    if (batchFiles.length > 0 || !edi.trim()) {
+      setValidity(null);
+      return;
+    }
+    // Auto-validation only owns the result panel when the user hasn't run a
+    // conversion for this content (guards against the two async flows racing).
+    const validateCanOwn = (prev: Result) =>
+      prev.kind === "placeholder" ||
+      prev.kind === "validation" ||
+      (prev.kind === "loading" && prev.source === "validate");
+
+    const t = setTimeout(async () => {
+      setValidity({ kind: "checking", label: "Validating…" });
+      setResult((prev) =>
+        validateCanOwn(prev) ? { kind: "loading", label: "Validating structure…", source: "validate" } : prev
+      );
+      try {
+        // Hold the loading animation for a realistic minimum window (~2-3s).
+        const [r] = await Promise.all([validateEdi(edi, fileName, apiBase), sleep(VALIDATE_MIN_MS)]);
+        if (r.error_count > 0)
+          setValidity({ kind: "error", label: `${r.error_count} error${r.error_count > 1 ? "s" : ""}` });
+        else if (r.warning_count > 0)
+          setValidity({ kind: "warn", label: `${r.warning_count} warning${r.warning_count > 1 ? "s" : ""}` });
+        else setValidity({ kind: "valid", label: "Valid" });
+        // Show the report automatically — but never overwrite a conversion.
+        setResult((prev) => (validateCanOwn(prev) ? { kind: "validation", report: r } : prev));
+      } catch {
+        setValidity(null); // stay quiet if the API is unreachable
+        setResult((prev) =>
+          prev.kind === "loading" && prev.source === "validate" ? { kind: "placeholder" } : prev
+        );
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [edi, fileName, apiBase, batchFiles.length]);
+
+  // Esc closes the maximized result overlay.
+  useEffect(() => {
+    if (!maximized) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMaximized(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [maximized]);
 
   function loadFiles(files: FileList) {
     if (files.length > 1) {
@@ -129,17 +194,18 @@ export default function App() {
   }
 
   async function convertSingle(fmt: Format) {
-    setResult({ kind: "loading", label: `Converting to ${fmt.toUpperCase()}` });
+    setResult({ kind: "loading", label: `Converting to ${fmt.toUpperCase()}`, source: "convert" });
     try {
+      // Hold the loading animation for a realistic minimum window.
       if (fmt === "json") {
-        const r = await convertJson(edi, fileName, txnType, apiBase);
+        const [r] = await Promise.all([convertJson(edi, fileName, txnType, apiBase), sleep(CONVERT_MIN_MS)]);
         setResult({ kind: "json", html: highlightJSON(r.data),
           raw: JSON.stringify(r.data, null, 2), badge: r.transaction_type });
       } else if (fmt === "xml") {
-        const xml = await convertXml(edi, fileName, txnType, apiBase);
+        const [xml] = await Promise.all([convertXml(edi, fileName, txnType, apiBase), sleep(CONVERT_MIN_MS)]);
         setResult({ kind: "xml", html: highlightXML(xml), raw: xml, badge: "XML" });
       } else {
-        const csv = await convertCsv(edi, fileName, txnType, apiBase);
+        const [csv] = await Promise.all([convertCsv(edi, fileName, txnType, apiBase), sleep(CONVERT_MIN_MS)]);
         setResult({ kind: "csv", text: csv, badge: "CSV" });
       }
     } catch (e) {
@@ -148,7 +214,8 @@ export default function App() {
   }
 
   async function runBatch(fmt: Format) {
-    setResult({ kind: "loading", label: `Converting ${batchFiles.length} files to ${fmt.toUpperCase()}` });
+    setResult({ kind: "loading", label: `Converting ${batchFiles.length} files to ${fmt.toUpperCase()}`, source: "convert" });
+    const startedAt = performance.now();
     const rows: BatchRow[] = [];
     const parts: string[] = [];
     for (const f of batchFiles) {
@@ -177,6 +244,9 @@ export default function App() {
     if (fmt === "json") { raw = `[\n${parts.join(",\n")}\n]`; ext = "json"; }
     else if (fmt === "xml") { raw = `<?xml version="1.0" encoding="UTF-8"?>\n<EdiBatch>\n${parts.join("\n")}\n</EdiBatch>\n`; ext = "xml"; }
     else { raw = parts.join("\n\n"); ext = "csv"; }
+    // Keep the loading animation up for a realistic minimum window.
+    const elapsed = performance.now() - startedAt;
+    if (elapsed < CONVERT_MIN_MS) await sleep(CONVERT_MIN_MS - elapsed);
     const ok = rows.filter((r) => r.ok).length;
     setResult({ kind: "batch", rows, raw, ext, badge: `${ok}/${rows.length} converted` });
   }
@@ -188,19 +258,6 @@ export default function App() {
       return;
     }
     void convertSingle(format);
-  }
-
-  async function validate() {
-    if (!edi.trim()) {
-      setResult({ kind: "error", title: "No input", detail: "Paste or load a single EDI file to validate." });
-      return;
-    }
-    setResult({ kind: "loading", label: "Validating structure" });
-    try {
-      setResult({ kind: "validation", report: await validateEdi(edi, fileName, apiBase) });
-    } catch (e) {
-      setResult(apiError(e));
-    }
   }
 
   // ----- copy / download -------------------------------------------------- #
@@ -239,6 +296,34 @@ export default function App() {
       ? result.report.valid ? "VALID" : `${result.report.error_count} errors`
       : "";
 
+  const canMaximize = result.kind !== "placeholder" && result.kind !== "loading";
+
+  const resultToolbar = (overlay: boolean) => (
+    <div className="res-toolbar" style={{ marginLeft: "auto" }}>
+      {badge && <span className="badge">{badge}</span>}
+      {!overlay && (
+        <button className="mini" onClick={() => setMaximized(true)} disabled={!canMaximize} title="Maximize">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3" /></svg>
+        </button>
+      )}
+      <button className="mini" onClick={copy} disabled={!dl} title="Copy">
+        {copied ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--good)" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+        )}
+      </button>
+      <button className="mini" onClick={download} disabled={!dl} title="Download">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
+      </button>
+      {overlay && (
+        <button className="mini" onClick={() => setMaximized(false)} title="Close (Esc)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <>
       <div className="aurora" aria-hidden="true"><span className="a" /><span className="b" /><span className="c" /></div>
@@ -266,7 +351,14 @@ export default function App() {
         <div className="grid">
           {/* Source */}
           <section className="panel glass">
-            <div className="panel-head"><span className="step">1</span><h2>Source EDI</h2><span className="kicker">Paste · drop · upload</span></div>
+            <div className="panel-head">
+              <span className="step">1</span><h2>Source EDI</h2>
+              {validity ? (
+                <span className={`validity ${validity.kind}`}><span className="vdot" />{validity.label}</span>
+              ) : (
+                <span className="kicker">Paste · drop · upload</span>
+              )}
+            </div>
 
             <div className={`drop${drag ? " drag" : ""}`}
               onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
@@ -332,10 +424,6 @@ export default function App() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" /></svg>
                 {result.kind === "loading" ? "Working…" : batchFiles.length > 0 ? `Convert ${batchFiles.length} files` : `Convert to ${format.toUpperCase()}`}
               </button>
-              <button className="btn ghost" onClick={validate} disabled={result.kind === "loading"}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4" /><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" /></svg>
-                Validate
-              </button>
               <button className="btn subtle" onClick={clearAll}>Clear</button>
             </div>
           </section>
@@ -344,19 +432,7 @@ export default function App() {
           <section className="panel glass result">
             <div className="panel-head">
               <span className="step">✓</span><h2>Result</h2>
-              <div className="res-toolbar" style={{ marginLeft: "auto" }}>
-                {badge && <span className="badge">{badge}</span>}
-                <button className="mini" onClick={copy} disabled={!dl} title="Copy">
-                  {copied ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--good)" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
-                  )}
-                </button>
-                <button className="mini" onClick={download} disabled={!dl} title="Download">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
-                </button>
-              </div>
+              {resultToolbar(false)}
             </div>
             <div className="output"><ResultView result={result} /></div>
           </section>
@@ -364,6 +440,18 @@ export default function App() {
 
         <p className="footnote">Self-hosted EDI Converter — backend at <code>{apiBase}</code>. Files are processed in memory and not stored.</p>
       </div>
+
+      {maximized && (
+        <div className="overlay-backdrop" onClick={() => setMaximized(false)}>
+          <div className="overlay-panel glass" onClick={(e) => e.stopPropagation()}>
+            <div className="panel-head">
+              <span className="step">✓</span><h2>Result</h2>
+              {resultToolbar(true)}
+            </div>
+            <div className="output"><ResultView result={result} /></div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
