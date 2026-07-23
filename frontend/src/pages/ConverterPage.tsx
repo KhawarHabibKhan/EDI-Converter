@@ -35,7 +35,7 @@ export default function ConverterPage() {
   const [apiBase, setApiBase] = useState(DEFAULT_BASE);
   const [format, setFormat] = useState<Format>("json");
   const [txnType, setTxnType] = useState<TxnType>("auto");
-  const [snipLevel, setSnipLevel] = useState<number>(2); // highest implemented
+  const [snipLevel, setSnipLevel] = useState<number>(3); // highest implemented
   const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [result, setResult] = useState<Result>({ kind: "placeholder" });
   const [validity, setValidity] = useState<
@@ -271,6 +271,7 @@ export default function ConverterPage() {
               <select id="snip" value={snipLevel} onChange={(e) => setSnipLevel(Number(e.target.value))}>
                 <option value={1}>Level 1 — Integrity (envelope)</option>
                 <option value={2}>Level 2 — Requirement (IG syntax)</option>
+                <option value={3}>Level 3 — Balancing (amounts)</option>
               </select>
             </div>
             <div className="field">

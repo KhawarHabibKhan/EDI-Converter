@@ -1,3 +1,4 @@
+
 # v3 · 4 — SNIP Phases & Git Workflow
 
 > **Project:** EDI-Converter — Version 3 (SNIP Level 2–5 validation)
@@ -23,6 +24,7 @@ main
 ```
 
 Per level (user-run):
+
 1. `git checkout main && git pull`
 2. `git checkout -b feature/snip-level-N`
 3. assistant implements level N + tests + doc updates; user commits in logical chunks
@@ -113,9 +115,11 @@ handled per the licensing decision; branch merged. **v3 complete.**
 ---
 
 ### Dependency map
+
 ```
 main ─► L2 (framework + requirement) ─► L3 (balancing) ─► L4 (situational) ─► L5 (code sets)
          each on its own feature branch, merged to main before the next begins
 ```
+
 L2 builds the runner + `?snip_level=` + issue `level`; L3/L4/L5 are "just another
 level module + per-type rules" once L2 exists.
