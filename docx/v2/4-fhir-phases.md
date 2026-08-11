@@ -60,14 +60,29 @@ valid FHIR **Bundle** centered on a `Claim`; v1 page unchanged; tests green.
 
 ---
 
-## V2-D — FHIR profile validation upgrade  *(later)*
+## V2-D — FHIR profile validation upgrade
 
 - **D.1** Replace "reuse existing validator" with real **FHIR profile validation**
   (CARIN Blue Button / US Core / Da Vinci) — a FHIR validator run in CI/tests.
+  ✅ **done 2026-08-11** — `.github/workflows/ci.yml` job `fhir-conformance` runs
+  the **official HL7 validator** (`validator_cli.jar`) over a Bundle exported from
+  every fixture by `backend/scripts/export_fhir_bundles.py`.
 - **D.2** Report FHIR conformance issues (structure, required fields, bindings).
-- **D.3** Optionally expose a "FHIR validate" mode in the UI.
+  ✅ done — at runtime by `engine/fhir/validator.py` (base R4, zero-dep) and in CI
+  by the reference implementation.
+- **D.3** Optionally expose a "FHIR validate" mode in the UI. ✅ done — the `/fhir`
+  page auto-validates and shows a **SNIP + FHIR R4** chip.
 
 **Done when:** generated Bundles pass the targeted IG profiles in CI.
+
+> **Status — split gate (2026-08-11).** The CI job enforces **base FHIR R4 as a
+> hard gate** (it fails the build) and runs **US Core + CARIN Blue Button as an
+> advisory step**. Our mappers emit conformant base-R4 resources but do not yet
+> declare `meta.profile` or carry the IGs' must-support slices, so the profile
+> run is a backlog report, not a pass. Full IG certification = flip
+> `continue-on-error: false` once that enrichment lands (§6.5 of the memory doc).
+> The base-R4 gate is not a formality: standing it up immediately exposed two
+> real defects our own validator had missed — see the memory doc.
 
 ---
 

@@ -46,7 +46,7 @@
 | V2-A | 837 → `Claim` end-to-end (adapter, xml_reader, fhir pkg, /edi/fhir, /fhir page) | ✅ Done |
 | V2-B | 835 → `ExplanationOfBenefit` (`map_eob.py`) | ✅ Done |
 | V2-C | 834 → `Coverage`; 270/271 → CoverageEligibility; 276/277 → `Task` | ✅ Done |
-| V2-D | FHIR structural validator + `/edi/fhir/validate` + UI chip | ✅ Done (base R4; IG cert = CI follow-up) |
+| V2-D | FHIR structural validator + `/edi/fhir/validate` + UI chip + **official HL7 validator in CI** | ✅ Done (base R4 hard gate; IG profiles advisory) |
 
 Legend: ⬜ Not started · 🟨 In progress · ✅ Done
 
@@ -119,12 +119,56 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done
   `components/{Header,ResultPanel}.tsx` + `lib/theme.ts`; nav + `.fhir-note` CSS.
   nginx SPA fallback already present (deep-link `/fhir` works).
 
+### V2-D completion — official HL7 validator in CI (2026-08-11)
+The D.1 acceptance criterion ("a FHIR validator run in CI/tests") had never been
+built — there was no CI at all. It exists now:
+
+- **`.github/workflows/ci.yml`** — three jobs: `backend-tests` (pytest),
+  `frontend-build` (tsc + vite), and **`fhir-conformance`**, which exports a
+  Bundle per fixture (`backend/scripts/export_fhir_bundles.py`) and runs the
+  **official `validator_cli.jar`** over them.
+- **Split gate.** Base R4 is a **hard gate**; US Core + CARIN Blue Button run
+  **advisory**.
+- **The verdict is computed, not taken from the exit code.**
+  `backend/scripts/check_fhir_conformance.py` reads the validator's
+  `OperationOutcome` (or its text report — both are handled) and fails on every
+  error **except** CPT "unknown code" findings. Reason: CPT is AMA-licensed, so
+  HL7 bundles only a *fragment* — "unknown" there means "not in the fragment",
+  not "invalid", and gating on it would tie the build to whichever CPT codes HL7
+  ships. This mirrors v3 decision 9 (`level5.CPT_MEMBERSHIP`). Note `-tx n/a`
+  does **not** avoid this: the CPT fragment is bundled locally.
+- **`tests/test_fhir_export.py`** guards the export so CI can't silently
+  validate fewer files; **`tests/test_fhir_conformance_gate.py`** covers the
+  verdict logic, including that a waiver never masks a real finding.
+
+**The gate paid for itself immediately — three real defects our own validator
+never caught**, each now fixed with a regression test:
+
+| # | Defect | Fix |
+|---|--------|-----|
+| 1 | **No `fullUrl` on Bundle entries** → *every* relative reference was unresolvable ("Relative Reference appears inside Bundle whose entry is missing a fullUrl") | `common.entry()` emits `{BUNDLE_BASE_URL}/{Type}/{id}`; `fhir/validator.py` now flags a missing `fullUrl` too |
+| 2 | **ICD-10-CM emitted undotted** (`J0300`), which is *not* a code in `http://hl7.org/fhir/sid/icd-10-cm` — X12 carries no decimal point | `common.icd10cm_code()` inserts it after the 3-char category (`J03.00`); applied in `map_claim._diagnoses` |
+| 3 | **`ExplanationOfBenefit.total[].reason`** — `reason` is valid on `item.adjudication` but does not exist on `total` | `map_eob._as_total()` reshapes to `category` + `amount`, carrying the X12 reason as a second coding on the category |
+| 4 | **`CoverageEligibilityResponse` invariant ces-1** — an EB with no service type produced an item with neither `category` nor `productOrService` | `map_eligibility._eb_item()` falls back to a text-only "Plan-level benefit" category |
+
+**Verified locally**, not just wired up: `validator_cli.jar` 6.10.1 against all 8
+exported Bundles → **0 blocking errors**; the only remaining findings are the 4
+waived CPT codes from the synthetic `837P-all-fields.dat`. Before the fixes the
+same run reported 25+ errors. Backend suite **180** (was 166 — +3 SNIP L3,
++11 FHIR/export/gate).
+
 ## 6.5 Open items / to confirm
+- [x] **A FHIR validator running in CI** (D.1) — done 2026-08-11, see above.
 - [ ] **IG profile certification** (CARIN Blue Button for EOB, US Core, Da Vinci)
-      via the official HL7 validator in CI. The runtime validator delivered in
-      V2-D checks **base FHIR R4 structure** only (required elements, value sets,
-      reference integrity, coding hygiene) — it is not IG certification. This is
-      intentional to preserve the zero-runtime-dependency principle.
+      — the validator now *runs* against these IGs in CI, but **advisory only**.
+      To make it a hard gate the mappers must declare `meta.profile` and carry
+      each IG's must-support slices; then flip `continue-on-error: false` in
+      `.github/workflows/ci.yml`. The runtime validator remains **base R4**
+      by design (zero runtime dependencies).
+- [ ] Fixture `837P-all-fields.dat` carries **synthetic CPT codes** (`99299`,
+      `87099`, modifiers `28`/`29`) that no CPT edition recognizes. Harmless for
+      structure, but the advisory job will always report them — decide whether to
+      correct the fixture or keep it as an "unknown code" case.
 - [ ] Confirm the `271` design choice of emitting derived `CoverageEligibilityRequest`
       + `Coverage` stubs (needed because R4 makes those references required).
 - [ ] Move `NEXT-STEPS-PROPOSAL.md` / `RECOMMENDATIONS.md` into the repo if they
