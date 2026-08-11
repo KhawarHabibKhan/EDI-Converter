@@ -1,24 +1,38 @@
 # Keep the build context small — without this, node_modules and .git are sent to
-# the Docker daemon on every build (hundreds of MB, and slow).
+# the Docker daemon on every build (91 MB here, and slow).
+#
+# IMPORTANT: a bare `*.md` matches only at the context ROOT — Docker's `*` does
+# not cross `/`. Rules that must apply at every depth carry the `**/` prefix.
 
-node_modules/
+# --- Dependencies and build output (the image builds its own) ---
+**/node_modules/
 dist/
+dist-ssr/
 .git/
 .gitignore
 
-# Build artefacts and tooling caches
-*.tsbuildinfo
+# --- Build artefacts and tooling caches ---
+**/*.tsbuildinfo
 vite.config.js
 vite.config.d.ts
 coverage/
 
-# Docs and local config
+# --- Docs and notes (the bundle ships no documentation) ---
+# `docx/` is outside this build context (./frontend) but listed so the exclusion
+# still holds if the context is ever widened.
 *.md
+**/*.md
+docx/
+
+# --- Local config, editors and logs ---
 .env
 .env.*
 !.env.example
 *.local
+**/*.log
+.vscode/
+.idea/
 
-# Docker's own files
+# --- Docker's own files ---
 Dockerfile
 .dockerignore

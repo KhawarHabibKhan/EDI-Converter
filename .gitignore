@@ -48,3 +48,17 @@ desktop.ini
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ---------- Docs & notes (kept out of the repo) ----------
+# Planning / design documents live outside version control.
+docx/
+
+# Stray markdown — scratch notes, proposals, recommendations, hand-offs.
+# README.md is the exception: it is the entry point for the repo. The pattern
+# has no slash, so this keeps every README.md at any depth (including
+# backend/engine/validation/codesets/README.md, which documents the code sets
+# next to the loader that reads them).
+*.md
+!README.md
+
+.claude/

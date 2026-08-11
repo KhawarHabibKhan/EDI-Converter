@@ -1,9 +1,14 @@
 # Keep the build context (and therefore the image) to runtime essentials only.
+#
+# IMPORTANT: a bare `*.md` or `__pycache__/` matches only at the context ROOT —
+# Docker's `*` does not cross `/`. Anything that must be excluded at every depth
+# needs the `**/` prefix, so most rules below carry it.
 
 # --- Python artefacts ---
-__pycache__/
-*.py[cod]
-*.egg-info/
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/*.egg-info/
 .venv/
 venv/
 env/
@@ -11,20 +16,33 @@ env/
 # --- Tests, CI helpers and their fixtures (not needed at runtime) ---
 tests/
 scripts/
-.pytest_cache/
+**/.pytest_cache/
 .coverage
 htmlcov/
 build/
 
 # --- Tooling caches ---
-.mypy_cache/
-.ruff_cache/
+**/.mypy_cache/
+**/.ruff_cache/
 
-# --- Docs and local config ---
+# --- Dev-only dependency list (the image installs requirements.txt) ---
+requirements-dev.txt
+
+# --- Docs and notes (never needed at runtime) ---
+# Every markdown file at every depth, with no README exception: the image serves
+# an API, not documentation. `docx/` sits outside this build context (./backend)
+# but is listed so the exclusion still holds if the context is ever widened.
 *.md
+**/*.md
+docx/
+
+# --- Local config, editors and logs ---
 .env
 .env.*
 !.env.example
+**/*.log
+.vscode/
+.idea/
 
 # --- Docker's own files ---
 Dockerfile
