@@ -1,0 +1,24 @@
+# Keep the build context small — without this, node_modules and .git are sent to
+# the Docker daemon on every build (hundreds of MB, and slow).
+
+node_modules/
+dist/
+.git/
+.gitignore
+
+# Build artefacts and tooling caches
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+coverage/
+
+# Docs and local config
+*.md
+.env
+.env.*
+!.env.example
+*.local
+
+# Docker's own files
+Dockerfile
+.dockerignore
