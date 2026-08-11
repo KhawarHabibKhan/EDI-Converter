@@ -57,6 +57,29 @@ def test_835_service_line_imbalance(sample_835):
     assert any(e["segment"] == "SVC" for e in errs)
 
 
+def test_835_transaction_total_mismatch(sample_835):
+    # BPR02 must equal Σ CLP04 − Σ PLB; 900 != 500 − (−25).
+    broken = sample_835.replace("BPR*I*525*", "BPR*I*900*")
+    errs = _l3_errors(runner.validate(broken, 3)["issues"])
+    assert any(e["segment"] == "BPR" and "BPR02" in e["message"] for e in errs)
+
+
+def test_835_plb_is_sign_aware(sample_835):
+    # Dropping the −25 PLB leaves Σ CLP04 = 500, so BPR02 = 525 no longer balances.
+    broken = sample_835.replace("PLB*1234567893*20241231*L6:CHK*-25~", "")
+    errs = _l3_errors(runner.validate(broken, 3)["issues"])
+    assert any(e["segment"] == "BPR" for e in errs)
+
+
+def test_835_bpr_check_skipped_without_claims(sample_835):
+    # A remittance with no CLP (e.g. a PLB-only advice) has nothing to balance.
+    no_claims = "\n".join(
+        ln for ln in sample_835.splitlines()
+        if not ln.startswith(("CLP", "SVC", "CAS", "NM1*QC", "LX", "AMT"))
+    )
+    assert [e for e in _l3_errors(runner.validate(no_claims, 3)["issues"]) if e["segment"] == "BPR"] == []
+
+
 def test_835_claim_charge_imbalance(sample_835):
     # Change the claim charge so it no longer equals the sum of line charges.
     broken = sample_835.replace("CLP*PATACCT001*1*800*500*250*", "CLP*PATACCT001*1*900*500*250*")

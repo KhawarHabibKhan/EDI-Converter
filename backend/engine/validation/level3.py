@@ -8,6 +8,10 @@ Pure arithmetic checks (exact ``Decimal``) that amounts reconcile:
   ``CAS`` adjustment amounts.
 * **835 claim (when service lines are present):** ``CLP03`` == Σ ``SVC02`` and
   ``CLP04`` == Σ ``SVC03``.
+* **835 transaction:** ``BPR02`` (total actual provider payment) == Σ ``CLP04``
+  − Σ ``PLB`` adjustment amounts. PLB amounts are **sign-aware**: the TR3 states
+  the provider-level adjustment is *subtracted* from the sum of claim payments,
+  so a negative PLB amount (money returned to the provider) increases BPR02.
 
 No external data — arithmetic only. When an operand is missing/unparseable the
 check is skipped (Level 2 already reports the missing/invalid element). Amounts
@@ -60,6 +64,23 @@ def _cas_amount_sum(seg: Segment) -> Decimal:
     return total
 
 
+def _plb_amount_sum(seg: Segment) -> Decimal:
+    """Sum the adjustment amounts in a PLB segment.
+
+    PLB carries up to six reason/amount pairs after the fiscal-period date:
+    ``PLB03/04``, ``PLB05/06`` … ``PLB13/14`` — so the amounts sit at the even
+    positions 4, 6, 8, 10, 12, 14. Amounts keep their sign.
+    """
+    total = Decimal("0")
+    for idx in range(4, 15, 2):
+        if idx > len(seg.elements):
+            break
+        amt = _dec(seg.el(idx))
+        if amt is not None:
+            total += amt
+    return total
+
+
 # --------------------------------------------------------------------------- #
 #  837 — claim total vs service-line charges
 # --------------------------------------------------------------------------- #
@@ -105,6 +126,7 @@ def _check_835(doc: EdiDocument) -> List[Dict[str, Any]]:
     issues: List[Dict[str, Any]] = []
     claim: Optional[Dict[str, Any]] = None
     service: Optional[Dict[str, Any]] = None
+    txn: Optional[Dict[str, Any]] = None
 
     def finalize_service(sv: Optional[Dict[str, Any]]) -> None:
         if not sv or sv["charge"] is None or sv["paid"] is None:
@@ -136,8 +158,39 @@ def _check_835(doc: EdiDocument) -> List[Dict[str, Any]]:
                 "CLP", c["pos"],
             ))
 
+    def finalize_txn(t: Optional[Dict[str, Any]]) -> None:
+        """BPR02 == Σ CLP04 − Σ PLB amounts (the PLB total is subtracted)."""
+        if not t or t["bpr"] is None or not t["claims"] or t["skip"]:
+            return
+        expected = t["clp"] - t["plb"]
+        if t["bpr"] != expected:
+            issues.append(make(
+                ERROR, 3,
+                f"BPR02 total payment {_fmt(t['bpr'])} does not equal the sum of claim "
+                f"payments {_fmt(t['clp'])} minus provider-level adjustments "
+                f"{_fmt(t['plb'])} (= {_fmt(expected)}).",
+                "BPR", t["pos"],
+            ))
+
     for pos, s in enumerate(doc.segments, start=1):
         sid = s.seg_id
+        # --- transaction scope: BPR opens it, PLB and CLP04 feed it ---------- #
+        if sid == "BPR":
+            # One BPR per 835 transaction set — it opens a new balancing scope.
+            finalize_txn(txn)
+            txn = {"bpr": _dec(s.el(2)), "pos": pos, "clp": Decimal("0"),
+                   "plb": Decimal("0"), "claims": 0, "skip": False}
+        elif sid == "PLB" and txn is not None:
+            txn["plb"] += _plb_amount_sum(s)
+        elif sid == "CLP" and txn is not None:
+            paid = _dec(s.el(4))
+            if paid is None:
+                txn["skip"] = True              # Level 2 already reports the bad element
+            else:
+                txn["clp"] += paid
+            txn["claims"] += 1
+
+        # --- claim and service-line scopes ----------------------------------- #
         if sid == "CLP":
             finalize_service(service)
             finalize_claim(claim)
@@ -160,4 +213,5 @@ def _check_835(doc: EdiDocument) -> List[Dict[str, Any]]:
 
     finalize_service(service)
     finalize_claim(claim)
+    finalize_txn(txn)
     return issues
