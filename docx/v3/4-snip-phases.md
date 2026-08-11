@@ -71,7 +71,8 @@ Pure arithmetic (exact `Decimal`), no external data.
 - **L3.1** `level3.py` + balancing rules:
   - **837:** `CLM02` claim total == Σ service-line charges (`SV1`/`SV2`).
   - **835:** `CLP` charge == paid + patient-responsibility + Σ `CAS` adjustments;
-    `SVC` line balancing; `BPR02` total == Σ `CLP04` + Σ `PLB`.
+    `SVC` line balancing; `BPR02` total == Σ `CLP04` **−** Σ `PLB` (sign-aware —
+    see the correction note in `5-snip-rule-reference.md` §5.3). ✅ all implemented.
 - **L3.2** Tests: balanced samples → clean; unbalanced copies → the specific
   Level-3 mismatch, labeled `3`, naming both sides of the equation.
 

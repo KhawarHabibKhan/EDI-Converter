@@ -18,8 +18,11 @@
   - Level 3 (Balancing) — merged to `main`.
   - Level 4 (Situational) — merged to `main`.
   - Level 5 (Code sets) — built on `feature/snip-validation-level-5`
-    (`HIGHEST_LEVEL=5`, default validation now runs L1..L5). Backend **166
-    tests** passing, frontend build clean. Awaiting merge → completes v3.
+    (`HIGHEST_LEVEL=5`, default validation now runs L1..L5). Awaiting merge →
+    completes v3.
+  - **2026-08-11:** the last deferred L3 rule (BPR-level 835 balancing) is now
+    implemented on this same branch, so every rule listed in `4-snip-phases.md`
+    L2–L5 is built. Backend **175 tests** passing, frontend build clean.
 
 ## 6.2 Locked decisions
 | # | Decision | Choice |
@@ -96,7 +99,24 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done/merged
 - `engine/validation/level3.py` (exact `Decimal`): 837 `CLM02` == Σ line charges;
   835 line `SVC02 == SVC03 + Σ line CAS` and claim `CLP03 == Σ SVC02`,
   `CLP04 == Σ SVC03`. Fixture `837I-sample.edi` `CLM02 → 750` (was unbalanced).
-  BPR-level balancing deferred (see §6.5).
+
+### L3 completion — BPR-level balancing (2026-08-11, no longer deferred)
+- The third rule from `4-snip-phases.md` L3.1 is now implemented:
+  **`BPR02` == Σ `CLP04` − Σ `PLB` amounts**, scoped per transaction set (a new
+  `BPR` opens a new balancing scope), skipped when the remittance has no `CLP`
+  or an unparseable `CLP04` (Level 2 reports that).
+- **Sign convention corrected.** `4-snip-phases.md` and
+  `5-snip-rule-reference.md` §5.3 both wrote `+ Σ PLB`; the TR3 *subtracts* the
+  provider-level total. Both docs fixed; a positive PLB is a recoupment (lowers
+  BPR02), a negative PLB returns money (raises it).
+- `_plb_amount_sum()` reads the six reason/amount pairs (`PLB03/04` … `PLB13/14`,
+  amounts at even positions 4–14), preserving sign.
+- Fixture `835-sample.edi` `BPR02 945 → 525` — it was never balanced
+  (Σ CLP04 500 − PLB −25 = 525), which is exactly why this rule was deferred.
+  Two assertions that hard-coded 945 updated (`test_map_financial.py`,
+  `test_fhir_eob.py`).
+- Tests: 3 added to `test_snip_level3.py` (total mismatch, PLB sign-awareness,
+  no-claims skip). Suite **169** (was 166).
 
 ### What Level 4 shipped (branch `feature/snip-validation-level-4`)
 - Backend: `engine/validation/level4.py` (situational): 837 accident
@@ -114,8 +134,9 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done/merged
 - [x] Level 5 built on `feature/snip-validation-level-5` — pending user merge (completes v3).
 - [ ] Refresh seed ICD-10-CM / ICD-10-PCS / HCPCS sets with the full CMS lists
       (data-only; drop-in replace the `.txt` files in `codesets/`).
-- [ ] **BPR-level 835 balancing** (`BPR02 = Σ CLP04 − Σ PLB`) deferred from L3 —
-      revisit with realistic balanced samples (sign-aware PLB).
+- [x] **BPR-level 835 balancing** (`BPR02 = Σ CLP04 − Σ PLB`) — **done 2026-08-11**;
+      the 835 fixture was rebalanced (`BPR02 → 525`) and the PLB sum is sign-aware.
+      This closes the last unimplemented rule in `4-snip-phases.md` L3.1.
 - [ ] **CPT licensing** (AMA) for full Level 5 — ship free sets first; confirm
       whether/when to enable CPT membership validation.
 - [ ] Confirm the per-level **transaction-type scope & order** (default:

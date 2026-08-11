@@ -118,7 +118,20 @@
 
 - **Active folder:** whole project stable; nothing in progress.
 - **Ports:** backend `:5080`, frontend Docker `:8091`, frontend dev `:5173`.
-- **Run tests:** `cd backend && python -m pytest -q` (currently **51 passing**).
+- **Docker (optimized 2026-08-11):** both images are multi-stage and run
+  unprivileged. Backend `python:3.11-alpine` runtime + pruned venv (build stage
+  carries `build-base`/`libffi-dev` to compile uvloop/httptools for musl; pip,
+  setuptools, wheel, `__pycache__` and the test framework are all stripped):
+  **260 MB → 127 MB**. Frontend builds with `npm ci` and serves the bundle from
+  `nginxinc/nginx-unprivileged:alpine` on port 8080: **93 MB → 81.7 MB**.
+  `requirements.txt` is now runtime-only; `requirements-dev.txt` adds
+  pytest/httpx. Compose adds read-only rootfs + tmpfs `/tmp`, `cap_drop: ALL`,
+  `no-new-privileges`, and CPU/memory limits. Healthchecks use `127.0.0.1`
+  (`localhost` resolves to `::1` first, which the IPv4-bound servers refuse).
+- **Run tests:** `cd backend && python -m pytest -q` (**51 passing** at the end of
+  v1; **175** today with v2 FHIR + v3 SNIP — see `v2/6-fhir-memory.md` and
+  `v3/6-snip-memory.md`). CI runs the suite, the frontend build, and FHIR
+  conformance on every push — `.github/workflows/ci.yml`.
 
 ---
 

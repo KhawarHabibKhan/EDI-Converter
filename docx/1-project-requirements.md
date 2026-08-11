@@ -63,16 +63,17 @@ page). Everything else builds on those two.
 
 ## 1.3 Features
 
-### Must-have (v1 / MVP)
-- [ ] Upload an EDI file (`.edi`, `.dat`, `.txt`) via drag-and-drop or file picker
-- [ ] **Auto-detect** the transaction type from the file
-- [ ] Manual **transaction-type selector**: `837P · 837I · 835 · 834 · 271 · 277`
-- [ ] **Output-format selector** — user picks the format, then converts
-- [ ] Convert to **JSON** and show it in a formatted, highlighted viewer
-- [ ] Convert to **XML** (shared serializer over any transaction type)
-- [ ] **Download** the result (JSON/XML), named after the input file
-- [ ] Clear **error messages** when a file is not valid EDI
-- [ ] Backend runs fully inside **Docker** (no external engine)
+### Must-have (v1 / MVP) — all delivered
+- [x] Upload an EDI file (`.edi`, `.dat`, `.txt`) via drag-and-drop or file picker
+- [x] **Auto-detect** the transaction type from the file
+- [x] Manual **transaction-type selector**: `837P · 837I · 835 · 834 · 271 · 277`
+      (shipped with `270` and `276` as well)
+- [x] **Output-format selector** — user picks the format, then converts
+- [x] Convert to **JSON** and show it in a formatted, highlighted viewer
+- [x] Convert to **XML** (shared serializer over any transaction type)
+- [x] **Download** the result (JSON/XML), named after the input file
+- [x] Clear **error messages** when a file is not valid EDI
+- [x] Backend runs fully inside **Docker** (no external engine)
 
 ### UX enhancements (post-v1, implemented)
 - [x] **Automatic validation** — files are validated the moment they are added
@@ -84,12 +85,13 @@ page). Everything else builds on those two.
 - [x] **Realistic loading animation** — a minimum loading window (~2 s for
       conversions, ~2–3 s for validation) so operations feel real, not instant.
 
-### Should-have (v2)
-- [ ] **CSV** output format for tabular data (claims, service lines, payments)
-- [ ] **Validation report** — list of issues with segment/line references
-- [ ] **Batch upload** — convert many files at once (mirrors the existing
+### Should-have — all delivered
+- [x] **CSV** output format for tabular data (claims, service lines, payments)
+- [x] **Validation report** — list of issues with segment/line references
+      (extended to WEDI SNIP Levels 1–5 in v3)
+- [x] **Batch upload** — convert many files at once (mirrors the existing
       `Input files/` → `Output files/` workflow)
-- [ ] Copy-to-clipboard for the JSON result
+- [x] Copy-to-clipboard for the JSON result
 
 ### Nice-to-have (later)
 - [ ] EDI **generation** (JSON → EDI) — reverse direction

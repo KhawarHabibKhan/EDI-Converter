@@ -64,8 +64,15 @@ CLM02 (total claim charge)  ==  Σ service-line charges (SV102 / SV203)
 ```
 per claim:   CLP03 (charge)  ==  CLP04 (paid) + CLP05 (patient resp) + Σ CAS amounts (claim + line)
 per line:    SVC02 (charge)  ==  SVC03 (paid)               + Σ line CAS amounts
-transaction: BPR02 (total paid)  ==  Σ CLP04 (paid)         + Σ PLB amounts (sign-aware)
+transaction: BPR02 (total paid)  ==  Σ CLP04 (paid)         − Σ PLB amounts (sign-aware)
 ```
+
+> **Sign convention (corrected 2026-08-11):** the TR3 *subtracts* the provider-level
+> adjustment total from the sum of claim payments. A **positive** PLB amount is
+> money recouped from the provider (lowers BPR02); a **negative** PLB amount is
+> money returned to them (raises it). Earlier drafts of this table and
+> `4-snip-phases.md` wrote `+ Σ PLB`, which inverts the result whenever a PLB is
+> present. The implemented rule uses the minus form.
 
 **Worked example (illustrative):**
 ```
