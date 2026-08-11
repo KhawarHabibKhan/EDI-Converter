@@ -212,6 +212,8 @@ def _diagnoses(raw: List[Dict[str, Any]]) -> tuple[List[Dict[str, Any]], Dict[st
         system = c.DIAG_SYSTEM_BY_QUALIFIER.get(
             str(diag.get("qualifier", "")).strip(), c.SYSTEM["icd10cm"]
         )
+        if system == c.SYSTEM["icd10cm"]:
+            code = c.icd10cm_code(code)     # X12 "J0300" -> ICD-10-CM "J03.00"
         diagnoses.append({
             "sequence": i,
             "diagnosisCodeableConcept": c.codeable_concept(code, system),

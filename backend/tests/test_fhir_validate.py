@@ -40,6 +40,19 @@ def test_detects_missing_required_element():
     assert "patient is required" in msgs
 
 
+def test_detects_entry_without_full_url():
+    # Caught by the official HL7 validator before our own checked for it —
+    # relative references are unresolvable without an entry fullUrl.
+    bad = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": [{"resource": {"resourceType": "Patient", "id": "patient-1"}}],
+    }
+    report = validator.validate_report(bad)
+    assert not report["valid"]
+    assert any("missing fullUrl" in i["message"] for i in report["issues"])
+
+
 def test_detects_dangling_reference():
     bad = {
         "resourceType": "Bundle",
