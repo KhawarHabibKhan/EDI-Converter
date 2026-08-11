@@ -1,0 +1,49 @@
+# Fly.io deployment for the EDI-Converter API.
+#
+#   fly launch --no-deploy --copy-config --config deploy/fly.toml
+#   fly deploy --config deploy/fly.toml --dockerfile backend/Dockerfile
+#
+# The frontend is a static bundle — host it free on Cloudflare Pages or Fly's
+# static serving rather than paying for a second machine (see deploy/README.md).
+#
+# Cost shape: auto_stop_machines suspends the machine when idle and wakes it on
+# the next request, so a low-traffic deployment bills only for the seconds it is
+# actually serving. Cold start is ~1-2s (Python import time on a 256 MB machine).
+
+app = "edi-converter"
+primary_region = "iad"          # put this near your users
+
+[build]
+  dockerfile = "../backend/Dockerfile"
+
+[env]
+  # Same-origin is not possible when the SPA is hosted elsewhere, so the API must
+  # name the exact frontend origin. Never widen this to "*".
+  EDI_CORS_ORIGINS = "https://edi-converter.pages.dev"
+  EDI_MAX_FILE_MB = "10"
+
+[http_service]
+  internal_port = 5080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0       # 0 = scale to zero; set 1 to avoid cold starts
+
+  [http_service.concurrency]
+    type = "requests"
+    # Parsing is CPU-bound: queueing beyond a handful of concurrent requests
+    # raises latency without raising throughput. Measured ~152 req/s at
+    # concurrency 8 on 1 vCPU — see deploy/README.md.
+    soft_limit = 8
+    hard_limit = 16
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/health"
+  timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
