@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:/Users/Admin/AppData/Local/Temp/claude/c--Users-Admin-Documents-da-agentz-Health-care-EDI-EDI-Converter/3d4948bf-a829-4a37-9c5a-a50e29074597/scratchpad/fhir\")",
+      "Bash(curl -sL -o validator_cli.jar https://github.com/hapifhir/org.hl7.fhir.core/releases/latest/download/validator_cli.jar)"
+    ]
+  }
+}

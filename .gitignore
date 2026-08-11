@@ -12,6 +12,11 @@ env/
 .coverage
 htmlcov/
 
+# FHIR Bundles exported for CI conformance validation
+backend/build/
+# HL7 validator CLI, if downloaded locally to reproduce the CI gate
+validator_cli.jar
+
 # ---------- Node / Vite (frontend) ----------
 node_modules/
 dist/
