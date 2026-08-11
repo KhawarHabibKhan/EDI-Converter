@@ -61,4 +61,10 @@ docx/
 *.md
 !README.md
 
+# Delivered documentation — tracked on purpose, despite the *.md rule above.
+# Add a line here for any doc that is a product deliverable rather than a note.
+!docs/user-guide.md
+!docs/case-study.md
+!docs/testing-plan.md
+
 .claude/
