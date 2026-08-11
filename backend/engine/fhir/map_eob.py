@@ -177,9 +177,24 @@ def _totals(claim: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     ]
     # Claim-level CAS adjustments (before any SVC) surface as extra totals so no
     # money is dropped, tagged with their X12 group/reason codes.
-    totals += _cas_adjudications(claim.get("adjustments") or [])
+    totals += [_as_total(a) for a in _cas_adjudications(claim.get("adjustments") or [])]
     totals = [t for t in totals if t]
     return totals or None
+
+
+def _as_total(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Reshape an adjudication entry for ``ExplanationOfBenefit.total``.
+
+    ``total`` is only ``category`` + ``amount`` in R4 — unlike
+    ``item.adjudication`` it has no ``reason`` element, and emitting one makes
+    the resource invalid. Keep the X12 reason code by carrying it as a second
+    coding on the category rather than dropping the information.
+    """
+    total: Dict[str, Any] = {"category": entry["category"], "amount": entry["amount"]}
+    reason_codings = (entry.get("reason") or {}).get("coding") or []
+    if reason_codings:
+        total["category"] = {"coding": (entry["category"].get("coding") or []) + reason_codings}
+    return total
 
 
 def _payment(payment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
