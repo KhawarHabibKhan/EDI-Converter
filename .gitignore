@@ -66,5 +66,6 @@ docx/
 !docs/user-guide.md
 !docs/case-study.md
 !docs/testing-plan.md
+!docs/deployment-guide.md
 
 .claude/
