@@ -1,5 +1,10 @@
 # Runs the EDI-Converter backend and frontend together.
 #   docker compose up --build
+#
+# Both services run unprivileged, with a read-only root filesystem and explicit
+# CPU/memory limits. Uploads are processed in memory and never persisted, so the
+# only writable path either container needs is a tmpfs /tmp (Starlette spools
+# multipart uploads larger than ~1 MB to a temporary file).
 services:
   backend:
     build: ./backend
@@ -9,16 +14,59 @@ services:
       EDI_CORS_ORIGINS: "http://localhost:5173,http://localhost:8091,http://localhost"
     restart: unless-stopped
 
+    # --- hardening ---
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    # --- resources ---
+    # Parsing is CPU-bound and single-request; 1 CPU / 512 MB is generous for the
+    # 10 MB upload ceiling. Reservations keep it schedulable under contention.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
   frontend:
     build:
       context: ./frontend
       args:
         # URL the browser uses to reach the backend (host-published port).
         VITE_API_URL: "http://localhost:5080"
-    # Host port 8091 (8080 is commonly occupied by other apps). Change the
-    # left number if 8091 is also busy: e.g. "9000:80".
+    # Host port 8091 (8080 is commonly occupied by other apps). Change the left
+    # number if 8091 is also busy: e.g. "9000:8080". The container port is 8080
+    # because the image runs as an unprivileged user.
     ports:
-      - "8091:80"
+      - "8091:8080"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+
+    # --- hardening ---
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    # --- resources ---
+    # nginx only serves ~200 KB of static assets.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 32M

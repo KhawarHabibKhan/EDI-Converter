@@ -99,6 +99,14 @@ def validate_bundle(bundle: Any) -> List[Dict[str, Any]]:
         if not isinstance(res, dict):
             issues.append(_issue(ERROR, base, "Entry has no resource object."))
             continue
+        # Outside transactions/batches every entry needs a fullUrl — it is the
+        # base that the relative references inside the Bundle resolve against.
+        if isinstance(e, dict) and not e.get("fullUrl"):
+            issues.append(_issue(
+                ERROR, f"{base}.fullUrl",
+                "Bundle entry is missing fullUrl; relative references inside the "
+                "Bundle cannot be resolved without it.",
+            ))
         issues.extend(_validate_resource(res, base, present))
 
     return issues

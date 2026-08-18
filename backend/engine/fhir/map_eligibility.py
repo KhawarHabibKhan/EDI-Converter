@@ -183,6 +183,13 @@ def _eb_item(eb: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "allowedMoney": amount,
         }]
 
+    if category is None:
+        # R4 invariant ces-1: an item SHALL contain a category or a billcode, but
+        # not both. An EB segment with no EB03 service type is a plan-level
+        # benefit, so give it a text-only category rather than emitting an item
+        # that satisfies neither side of the constraint.
+        category = {"text": "Plan-level benefit"}
+
     item: Dict[str, Any] = {
         "category": category,
         "network": network,

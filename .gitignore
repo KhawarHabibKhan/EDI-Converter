@@ -12,6 +12,11 @@ env/
 .coverage
 htmlcov/
 
+# FHIR Bundles exported for CI conformance validation
+backend/build/
+# HL7 validator CLI, if downloaded locally to reproduce the CI gate
+validator_cli.jar
+
 # ---------- Node / Vite (frontend) ----------
 node_modules/
 dist/
@@ -43,3 +48,24 @@ desktop.ini
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ---------- Docs & notes (kept out of the repo) ----------
+# Planning / design documents live outside version control.
+docx/
+
+# Stray markdown — scratch notes, proposals, recommendations, hand-offs.
+# README.md is the exception: it is the entry point for the repo. The pattern
+# has no slash, so this keeps every README.md at any depth (including
+# backend/engine/validation/codesets/README.md, which documents the code sets
+# next to the loader that reads them).
+*.md
+!README.md
+
+# Delivered documentation — tracked on purpose, despite the *.md rule above.
+# Add a line here for any doc that is a product deliverable rather than a note.
+!docs/user-guide.md
+!docs/case-study.md
+!docs/testing-plan.md
+!docs/deployment-guide.md
+
+.claude/

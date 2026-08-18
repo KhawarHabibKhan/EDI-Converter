@@ -26,6 +26,22 @@ def test_codeable_concept_never_bare_code():
     assert common.codeable_concept("") is None
 
 
+def test_icd10cm_codes_get_their_decimal_point():
+    # X12 carries ICD-10-CM undotted; the FHIR code system is defined with the dot.
+    assert common.icd10cm_code("J0300") == "J03.00"
+    assert common.icd10cm_code("Z1159") == "Z11.59"
+    assert common.icd10cm_code("J209") == "J20.9"
+    assert common.icd10cm_code("A00") == "A00"      # 3-char category: no dot
+    assert common.icd10cm_code("J20.9") == "J20.9"  # already dotted: untouched
+    assert common.icd10cm_code("") is None
+
+
+def test_bundle_entries_carry_a_resolvable_full_url():
+    # Relative references only resolve against the entry's fullUrl base.
+    b = common.bundle([{"resourceType": "Patient", "id": "patient-1"}])
+    assert b["entry"][0]["fullUrl"] == f"{common.BUNDLE_BASE_URL}/Patient/patient-1"
+
+
 def test_money_parses_strings():
     assert common.money("350.00") == {"value": 350.0, "currency": "USD"}
     assert common.money("") is None

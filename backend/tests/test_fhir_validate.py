@@ -26,6 +26,36 @@ def test_generated_bundles_are_valid(request, fixture, code):
     assert report["error_count"] == 0
 
 
+# --------------------------------------------------------------------------- #
+#  Regressions found by the official HL7 validator (CI job `fhir-conformance`)
+# --------------------------------------------------------------------------- #
+def test_eob_total_has_no_reason_element(sample_835):
+    # R4 ExplanationOfBenefit.total is category + amount only. `reason` is valid
+    # on item.adjudication but not here — the X12 reason rides on the category.
+    bundle = fhir_writer.to_fhir(converter.convert_edi(sample_835, "835"), "835")
+    eobs = [e["resource"] for e in bundle["entry"]
+            if e["resource"]["resourceType"] == "ExplanationOfBenefit"]
+    assert eobs
+    for eob in eobs:
+        for total in eob.get("total", []):
+            assert set(total) <= {"category", "amount"}, f"unexpected keys: {set(total)}"
+        # The CAS reason code is preserved as an extra coding on the category.
+        codings = [cd["code"] for t in eob.get("total", []) for cd in t["category"].get("coding", [])]
+        assert "45" in codings
+
+
+def test_eligibility_items_satisfy_ces_1(sample_271):
+    # ces-1: an item SHALL contain a category or a billcode, but not both.
+    bundle = fhir_writer.to_fhir(converter.convert_edi(sample_271, "271"), "271")
+    responses = [e["resource"] for e in bundle["entry"]
+                 if e["resource"]["resourceType"] == "CoverageEligibilityResponse"]
+    assert responses
+    items = [i for r in responses for ins in r.get("insurance", []) for i in ins.get("item", [])]
+    assert items
+    for item in items:
+        assert ("category" in item) != ("productOrService" in item)
+
+
 def test_detects_missing_required_element():
     bad = {
         "resourceType": "Bundle",
@@ -38,6 +68,19 @@ def test_detects_missing_required_element():
     msgs = " ".join(i["message"] for i in report["issues"])
     assert "created is required" in msgs
     assert "patient is required" in msgs
+
+
+def test_detects_entry_without_full_url():
+    # Caught by the official HL7 validator before our own checked for it —
+    # relative references are unresolvable without an entry fullUrl.
+    bad = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": [{"resource": {"resourceType": "Patient", "id": "patient-1"}}],
+    }
+    report = validator.validate_report(bad)
+    assert not report["valid"]
+    assert any("missing fullUrl" in i["message"] for i in report["issues"])
 
 
 def test_detects_dangling_reference():

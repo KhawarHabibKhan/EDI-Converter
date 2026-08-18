@@ -56,7 +56,7 @@ def test_eob_totals_and_payment(sample_835):
     cats = {t["category"]["coding"][0]["code"]: t["amount"]["value"] for t in eob["total"]}
     assert cats["submitted"] == 800.0
     assert cats["benefit"] == 500.0
-    assert eob["payment"]["amount"] == {"value": 945.0, "currency": "USD"}
+    assert eob["payment"]["amount"] == {"value": 525.0, "currency": "USD"}
     assert eob["payment"]["identifier"]["value"] == "CHECK12345"
 
 

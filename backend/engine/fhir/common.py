@@ -69,6 +69,21 @@ def _clean(value: Any) -> Optional[str]:
     return s or None
 
 
+def icd10cm_code(code: Any) -> Optional[str]:
+    """Format an X12 diagnosis code as ICD-10-CM expects it in FHIR.
+
+    X12 carries ICD-10-CM **without** the decimal point (``J0300``), but the
+    ``http://hl7.org/fhir/sid/icd-10-cm`` code system is defined with it
+    (``J03.00``) — so passing the X12 form straight through produces codes the
+    HL7 validator rejects as unknown. The category is always the first three
+    characters; anything after that is the subclassification.
+    """
+    s = _clean(code)
+    if not s or "." in s:
+        return s
+    return f"{s[:3]}.{s[3:]}" if len(s) > 3 else s
+
+
 def reference(resource_type: str, local_id: str) -> Dict[str, str]:
     """A FHIR Reference: {"reference": "Patient/patient-1"}."""
     return {"reference": f"{resource_type}/{local_id}"}
@@ -191,9 +206,21 @@ def prune(obj: Any) -> Any:
     return obj
 
 
+# Base for Bundle entry ``fullUrl``. Our references are relative ("Patient/p-1"),
+# and FHIR resolves a relative reference against the base of the entry's
+# fullUrl — so without one, nothing inside the Bundle is resolvable and the HL7
+# validator reports every reference as unresolved. This host is a stable
+# placeholder: the Bundles are conversion output, not records served from an
+# actual FHIR server.
+BUNDLE_BASE_URL = "http://edi-converter.local/fhir"
+
+
 def entry(resource: Dict[str, Any]) -> Dict[str, Any]:
-    """Wrap a resource as a Bundle entry."""
-    return {"resource": resource}
+    """Wrap a resource as a Bundle entry (with a resolvable ``fullUrl``)."""
+    rtype, rid = resource.get("resourceType"), resource.get("id")
+    if not rtype or not rid:
+        return {"resource": resource}
+    return {"fullUrl": f"{BUNDLE_BASE_URL}/{rtype}/{rid}", "resource": resource}
 
 
 def bundle(resources: List[Dict[str, Any]]) -> Dict[str, Any]:

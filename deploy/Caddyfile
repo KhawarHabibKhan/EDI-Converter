@@ -1,0 +1,71 @@
+# Production edge for EDI-Converter.
+#
+# Caddy terminates TLS (automatic Let's Encrypt certificates, auto-renewed),
+# sets the security headers, and puts everything on ONE origin:
+#
+#     https://your-domain/            -> the SPA        (frontend container)
+#     https://your-domain/api/...     -> the API        (backend container)
+#
+# Single origin is deliberate: the browser never makes a cross-origin request,
+# so CORS stops being a deployment variable entirely. The frontend is built with
+# VITE_API_URL=/api to match.
+
+{
+	# Let's Encrypt registration address; also where expiry warnings go.
+	email {$ACME_EMAIL}
+
+	# Caddy's own admin API is not needed in a container.
+	admin off
+}
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		# HTTPS only, once the domain is confirmed working. Remove `preload` if
+		# you are not ready to commit the domain to the HSTS preload list.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy "same-origin"
+
+		# The UI loads Sora / Manrope / JetBrains Mono from Google Fonts, so the
+		# stylesheet and font origins must be allowed. Self-host the fonts (see
+		# deploy/README.md) and this tightens to 'self' — worth doing for PHI
+		# deployments, since the CDN request exposes user IPs to a third party.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+		# Do not advertise the server software.
+		-Server
+	}
+
+	# ---- API -------------------------------------------------------------- #
+	handle /api/* {
+		uri strip_prefix /api
+
+		# Uploads are capped at EDI_MAX_FILE_MB (10 by default) in the app; this
+		# rejects oversized bodies at the edge, before they reach Python.
+		request_body {
+			max_size {$MAX_UPLOAD_SIZE:12MB}
+		}
+
+		reverse_proxy backend:5080 {
+			health_uri /health
+			health_interval 30s
+		}
+	}
+
+	# ---- SPA -------------------------------------------------------------- #
+	handle {
+		reverse_proxy frontend:8080
+	}
+
+	log {
+		# Access logs deliberately record no request bodies — EDI payloads are PHI.
+		output stdout
+		format json
+	}
+}

@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+      - name: Run the suite
+        working-directory: backend
+        run: python -m pytest -q
+
+  frontend-build:
+    name: Frontend (tsc + vite build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  fhir-conformance:
+    name: FHIR conformance (official HL7 validator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Export a Bundle for every fixture
+        working-directory: backend
+        run: python scripts/export_fhir_bundles.py build/fhir
+
+      - name: Cache FHIR packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.fhir/packages
+          key: fhir-packages-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      - name: Download the HL7 validator
+        run: >
+          curl -sL -o validator_cli.jar
+          https://github.com/hapifhir/org.hl7.fhir.core/releases/latest/download/validator_cli.jar
+
+      # Gate 1 — base FHIR R4. This MUST pass: it is the contract our
+      # zero-dependency runtime validator (engine/fhir/validator.py) enforces,
+      # independently confirmed by the reference implementation.
+      #
+      # The verdict comes from check_fhir_conformance.py rather than the
+      # validator's exit code, so that CPT "unknown code" findings are waived —
+      # CPT is AMA-licensed and HL7 bundles only a fragment, so an unknown code
+      # there means "not in the fragment". Everything else fails the build.
+      - name: Validate against base FHIR R4
+        run: >
+          java -jar validator_cli.jar backend/build/fhir -version 4.0.1
+          -output fhir-outcome.json || true
+
+      - name: Enforce the conformance verdict (hard gate)
+        run: python backend/scripts/check_fhir_conformance.py fhir-outcome.json
+
+      - name: Upload the conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fhir-conformance-outcome
+          path: fhir-outcome.json
+          if-no-files-found: ignore
+
+      # Gate 2 — terminology + published IG profiles. Advisory: our mappers emit
+      # conformant base-R4 resources but do not yet declare `meta.profile` or
+      # carry these IGs' must-support slices. Terminology is on here, so
+      # code-level findings still surface in the log — that is how the ICD-10-CM
+      # decimal-point bug was found. See docx/v2/6-fhir-memory.md §6.5.
+      # Flip continue-on-error to false once the mappings are IG-complete.
+      - name: Validate against US Core + CARIN Blue Button (advisory)
+        continue-on-error: true
+        run: >
+          java -jar validator_cli.jar backend/build/fhir -version 4.0.1
+          -ig hl7.fhir.us.core#6.1.0
+          -ig hl7.fhir.us.carin-bb#2.0.0
+          -output-style compact

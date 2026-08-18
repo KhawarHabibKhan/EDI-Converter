@@ -10,7 +10,8 @@ def test_835_detect_and_payment(sample_835):
     result = converter.convert_edi(sample_835, "auto")
     assert result["source_transaction"] == "ANSI X12 835"
     pay = result["header"]["payment"]
-    assert pay["total_paid_amount"] == "945"
+    # BPR02 = Σ CLP04 (500) − Σ PLB (−25) = 525; the fixture balances (Level 3).
+    assert pay["total_paid_amount"] == "525"
     assert pay["payment_method"] == "ACH"
     assert pay["trace_number"] == "CHECK12345"
 
