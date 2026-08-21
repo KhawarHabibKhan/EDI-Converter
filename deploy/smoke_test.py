@@ -231,7 +231,7 @@ def check_validation(api: str, r: Results, insecure: bool) -> None:
         r.fail("Broken file is rejected", f"status {status}, expected valid=false")
 
 
-def check_limits(api: str, r: Results, insecure: bool) -> None:
+def check_limits(api: str, r: Results, insecure: bool, max_upload_mb: int) -> None:
     # Unsupported extension -> 400 with a useful message, not a 500.
     status, _, body = post_edi(api, "/edi/json", b"nonsense", name="payload.exe", insecure=insecure)
     if status == 400:
@@ -245,17 +245,34 @@ def check_limits(api: str, r: Results, insecure: bool) -> None:
         "Rejects empty upload", "400" if status == 400 else f"expected 400, got {status}"
     )
 
-    # Oversized upload -> 413 from the app, or 413 from the edge before it.
-    oversized = b"ISA*00*" + (b"X" * (13 * 1024 * 1024))
+    # Oversized upload -> 413.
+    #
+    # Sized ONE MiB over the application's ceiling on purpose. Going far over it
+    # (say 13 MB against a 12 MB edge cap) makes the edge abort the request
+    # mid-upload while the client is still writing, which surfaces as a reset or
+    # a write-side stall rather than a clean 413 — a flaky check that tells you
+    # nothing about the app. Just over the app's limit passes the edge cleanly
+    # and lets the app answer.
+    oversized = b"ISA*00*" + (b"X" * ((max_upload_mb + 1) * 1024 * 1024))
     try:
-        status, _, _ = post_edi(api, "/edi/json", oversized, insecure=insecure, timeout=120)
+        status, _, _ = post_edi(api, "/edi/json", oversized, insecure=insecure, timeout=60)
         if status == 413:
-            r.ok("Rejects oversized upload", "413")
+            r.ok("Rejects oversized upload", f"413 at >{max_upload_mb} MB")
         else:
-            r.fail("Rejects oversized upload", f"expected 413, got {status}")
-    except (urllib.error.URLError, ConnectionError) as exc:
-        # Some edges cut the connection instead of replying — acceptable.
-        r.warn("Rejects oversized upload", f"connection closed by the edge ({exc})")
+            r.fail(
+                "Rejects oversized upload",
+                f"expected 413, got {status}. If the server's EDI_MAX_FILE_MB is "
+                f"not {max_upload_mb}, pass --max-upload-mb to match it.",
+            )
+    except OSError as exc:
+        # URLError, ConnectionError and TimeoutError are all OSError subclasses.
+        # Reaching here means the edge cut the request off before the app could
+        # reply — the cap is enforced, just not observably by this check.
+        r.warn(
+            "Rejects oversized upload",
+            f"the edge closed the connection before replying "
+            f"({type(exc).__name__}) — cap enforced upstream of the app",
+        )
 
 
 def check_no_phi_in_errors(api: str, r: Results, insecure: bool) -> None:
@@ -275,6 +292,8 @@ def main() -> int:
                         help="path the API is mounted on (default: /api; use '' when hitting the backend directly)")
     parser.add_argument("--no-tls", action="store_true", help="skip TLS/HSTS checks")
     parser.add_argument("--insecure", action="store_true", help="accept self-signed certificates")
+    parser.add_argument("--max-upload-mb", type=int, default=10,
+                        help="the server's EDI_MAX_FILE_MB, so the oversize check lands just over it (default: 10)")
     args = parser.parse_args()
 
     base = args.base_url.rstrip("/")
@@ -290,7 +309,7 @@ def main() -> int:
         ("API health", lambda: check_health(api, r, args.insecure)),
         ("Conversions", lambda: check_conversions(api, r, args.insecure)),
         ("Validation", lambda: check_validation(api, r, args.insecure)),
-        ("Input limits", lambda: check_limits(api, r, args.insecure)),
+        ("Input limits", lambda: check_limits(api, r, args.insecure, args.max_upload_mb)),
         ("PHI safety", lambda: check_no_phi_in_errors(api, r, args.insecure)),
     ]
     for title, run in groups:

@@ -21,6 +21,9 @@ from engine import converter, csv_writer, input_adapter, xml_writer
 from engine.fhir import validator as fhir_validator
 from engine.fhir import writer as fhir_writer
 from engine.validation import runner as snip_runner
+from logging_config import configure_logging, log_requests
+
+log = configure_logging()
 
 app = FastAPI(
     title="EDI-Converter API",
@@ -28,6 +31,10 @@ app = FastAPI(
     "and validation reports. Self-hosted; no commercial engine.",
     version="0.1.0",
 )
+
+# Request logging. Deliberately records only traffic shape — never body content,
+# parsed output, or filenames, all of which can carry PHI. See logging_config.py.
+app.middleware("http")(log_requests)
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,6 +106,9 @@ def _convert_or_raise(text: str, type: str) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception:  # noqa: BLE001 — never leak internals / PHI
+        # Log the traceback so the failure is diagnosable; the response stays
+        # generic. Only the requested type is recorded, never file content.
+        log.exception("conversion failed", extra={"context": {"type": type}})
         raise HTTPException(
             status_code=500, detail="Unexpected error converting the EDI file."
         )
@@ -173,6 +183,7 @@ async def edi_to_fhir(file: UploadFile = File(...)) -> Response:
             converter.UnsupportedTransactionError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception:  # noqa: BLE001 — never leak internals / PHI
+        log.exception("FHIR bundle build failed")
         raise HTTPException(
             status_code=500, detail="Unexpected error building the FHIR Bundle."
         )
@@ -241,6 +252,7 @@ async def edi_fhir_validate(file: UploadFile = File(...)) -> dict:
             "segment": "", "position": 0, "stage": "fhir",
         })
     except Exception:  # noqa: BLE001 — never leak internals / PHI
+        log.exception("FHIR validation failed")
         raise HTTPException(status_code=500, detail="Unexpected error building the FHIR Bundle.")
     else:
         report = fhir_validator.validate_report(bundle)

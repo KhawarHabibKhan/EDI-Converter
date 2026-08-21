@@ -1,0 +1,70 @@
+[project]
+name = "edi-converter-backend"
+version = "0.1.0"
+description = "Self-hosted X12 EDI to JSON/XML/CSV/FHIR converter with WEDI SNIP validation"
+requires-python = ">=3.11"
+
+# --------------------------------------------------------------------------- #
+#  Ruff — linting + formatting (replaces flake8/isort/black, one tool)
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["build", ".pytest_cache"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes — unused imports/variables, undefined names
+    "I",        # isort — import ordering
+    "B",        # flake8-bugbear — likely bugs
+    "C90",      # mccabe — cyclomatic complexity
+    "UP",       # pyupgrade
+    "SIM",      # flake8-simplify
+    "RET",      # flake8-return
+    "PTH",      # prefer pathlib
+    "T20",      # flake8-print — no stray print() in the service
+    "S",        # flake8-bandit — security lint
+]
+ignore = [
+    "S101",     # assert — pytest relies on it
+    "B008",     # FastAPI's File()/Query() defaults are the documented idiom
+]
+
+[tool.ruff.lint.mccabe]
+# The X12 mappers are branch-heavy by nature (one branch per segment id), so
+# this is set to flag genuine outliers rather than the dispatch loops.
+max-complexity = 15
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501", "S105", "S106"]
+"scripts/*" = ["T20"]          # CLI helpers are meant to print
+
+[tool.ruff.lint.isort]
+known-first-party = ["engine", "config", "main"]
+
+# --------------------------------------------------------------------------- #
+#  mypy — typing. Not strict everywhere yet: the engine is fully annotated,
+#  the tests are not, so tests are excluded rather than blanket-ignored.
+# --------------------------------------------------------------------------- #
+[tool.mypy]
+python_version = "3.11"
+files = ["engine", "config.py", "main.py"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = false   # tighten per-module as annotations land
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+# --------------------------------------------------------------------------- #
+#  Pytest
+# --------------------------------------------------------------------------- #
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

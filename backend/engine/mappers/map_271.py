@@ -33,7 +33,7 @@ ELIGIBILITY_CODE = {
 
 
 def _parse_eb(seg: Segment, delim: Delimiters) -> Dict[str, Any]:
-    service_types = seg.el(3).split(delim.repetition) if seg.el(3) else []
+    service_types = delim.split_repeats(seg.el(3))
     return {
         "eligibility_code": seg.el(1),
         "eligibility": ELIGIBILITY_CODE.get(seg.el(1), seg.el(1)),
@@ -150,7 +150,7 @@ def to_json(doc: EdiDocument) -> Dict[str, Any]:
             cur_node["eligibility"].append(_parse_eb(seg, delim))
         elif sid == "EQ" and cur_node is not None:
             cur_node.setdefault("inquiries", []).append({
-                "service_type_codes": seg.el(1).split(delim.repetition) if seg.el(1) else [],
+                "service_type_codes": delim.split_repeats(seg.el(1)),
                 "coverage_level_code": seg.el(3),
             })
         elif sid == "LS":
