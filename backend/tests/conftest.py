@@ -47,5 +47,13 @@ def sample_270() -> str:
 
 
 @pytest.fixture
+def sample_271_4010() -> str:
+    """A pre-4030 interchange: ISA11 is the standards identifier "U", not a
+    repetition separator. Every other fixture is 00501, so this is the only one
+    that exercises the version-dependent delimiter path."""
+    return read_fixture("271-4010-sample.edi")
+
+
+@pytest.fixture
 def sample_277() -> str:
     return read_fixture("277-sample.edi")
