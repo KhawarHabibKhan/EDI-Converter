@@ -5,9 +5,18 @@ Self-hosted web app that converts healthcare **X12 EDI** into clean **JSON**,
 It replaces the commercial datainsight.health engine with our own Dockerized
 backend — no license required.
 
-Full planning lives in [`docx/`](docx/): requirements, architecture, rules,
-phases, design, the two implementation plans, and the living progress log
-(`6-memory.md`).
+Internal planning and design documents are kept out of the repository per project
+policy. The user-facing documentation is in [`docs/`](docs/): the
+[user manual](docs/user-guide.md), [testing plan](docs/testing-plan.md),
+[deployment guide](docs/deployment-guide.md) and [case study](docs/case-study.md).
+
+## Quick start
+
+```bash
+git clone https://github.com/KhawarHabibKhan/EDI-Converter.git
+cd EDI-Converter
+docker compose up --build
+```
 
 ## Features
 
@@ -29,7 +38,7 @@ phases, design, the two implementation plans, and the living progress log
 
 ```
 EDI-Converter/
-├── docx/         planning documents (read 6-memory.md first)
+├── docs/         user manual, testing plan, deployment guide, case study
 ├── backend/      FastAPI + conversion engine (Python, no EDI-library deps)
 ├── frontend/     React + Vite (TypeScript, pure-CSS design system)
 ├── samples/      example inputs/outputs
@@ -105,9 +114,9 @@ cd backend && python -m pytest -q
 
 | Version | Scope | Status |
 |---------|-------|--------|
-| **v1** | Phases 0–9 — 8 transaction types → JSON/XML/CSV, batch, UX | ✅ complete — [`docx/6-memory.md`](docx/6-memory.md) |
-| **v2** | FHIR R4 Bundles + structural validation (V2-A…D) | ✅ complete — [`docx/v2/6-fhir-memory.md`](docx/v2/6-fhir-memory.md) |
-| **v3** | WEDI SNIP validation Levels 2–5 | ✅ complete — [`docx/v3/6-snip-memory.md`](docx/v3/6-snip-memory.md) |
+| **v1** | Phases 0–9 — 8 transaction types → JSON/XML/CSV, batch, UX | ✅ complete |
+| **v2** | FHIR R4 Bundles + structural validation (V2-A…D) | ✅ complete |
+| **v3** | WEDI SNIP validation Levels 1–5 | ✅ complete |
 
 ## CI
 
