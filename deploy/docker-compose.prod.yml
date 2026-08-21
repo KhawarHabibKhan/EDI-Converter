@@ -57,6 +57,9 @@ services:
       # cross-origin request is ever made. Kept explicit to lock CORS down.
       EDI_CORS_ORIGINS: "https://${SITE_ADDRESS}"
       EDI_MAX_FILE_MB: ${EDI_MAX_FILE_MB:-10}
+      # Structured request logs; bodies and filenames are never logged (PHI).
+      EDI_LOG_LEVEL: ${EDI_LOG_LEVEL:-INFO}
+      EDI_LOG_FORMAT: ${EDI_LOG_FORMAT:-json}
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
